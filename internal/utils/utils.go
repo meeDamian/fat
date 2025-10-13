@@ -18,16 +18,17 @@ import (
 	"github.com/meedamian/fat/internal/types"
 )
 
-var hexTS string
+var startTS int64
 
-func SetHexTS(ts string) {
-	hexTS = ts
+func SetStartTS(ts int64) {
+	startTS = ts
 }
 
 // Log appends a log entry to the model's log file
 func Log(logType, modelName, prompt, response string) {
-	ts := time.Now().Unix()
-	filename := fmt.Sprintf("answers/%s_%d_%s_%s.log", hexTS, ts, logType, modelName)
+	diff := time.Now().Unix() - startTS
+	diffStr := fmt.Sprintf("%04d", diff)
+	filename := fmt.Sprintf("answers/%d_%s_%s_%s.log", startTS, diffStr, logType, modelName)
 	os.MkdirAll("answers", 0755)
 	file, err := os.OpenFile(filename, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
@@ -35,7 +36,7 @@ func Log(logType, modelName, prompt, response string) {
 		return
 	}
 	defer file.Close()
-	entry := fmt.Sprintf("[%d] Prompt: %s\nResponse: %s\n\n", ts, prompt, response)
+	entry := fmt.Sprintf("Prompt: %s\n\nResponse: %s\n\n", prompt, response)
 	file.WriteString(entry)
 }
 
@@ -56,12 +57,24 @@ func SummarizeChunk(chunk string) (string, error) {
 }
 
 // BuildContext builds the context string from question and history
-func BuildContext(question string, history types.History) string {
-	context := "Question: " + question + "\n\nHistory:\n"
+func BuildContext(question string, history types.History, currentID string) string {
+	context := question + "\n\n====\nOwn previous answer:\n"
+	if responses, ok := history[currentID]; ok && len(responses) > 0 {
+		context += responses[len(responses)-1].Refined
+	}
+	context += "\n====\nOther models' previous answers and suggestions:\n"
 	for id, responses := range history {
-		context += fmt.Sprintf("Model %s:\n", id)
-		for _, resp := range responses {
-			context += fmt.Sprintf("Refined: %s\nSuggestions: %v\n", resp.Refined, resp.Suggestions)
+		if id == currentID {
+			continue
+		}
+		if len(responses) > 0 {
+			last := responses[len(responses)-1]
+			context += fmt.Sprintf("Model %s:\nAnswer: %s\n", id, last.Refined)
+			if len(last.Suggestions) > 0 {
+				suggJSON, _ := json.Marshal(last.Suggestions)
+				context += fmt.Sprintf("Suggestions: %s\n", suggJSON)
+			}
+			context += "====\n"
 		}
 	}
 	return context

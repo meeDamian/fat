@@ -27,7 +27,7 @@ func TestEstTokens(t *testing.T) {
 func TestBuildContext(t *testing.T) {
 	history := make(map[string][]types.Response)
 	// Add test data
-	context := BuildContext("What is Go?", history)
+	context := BuildContext("What is Go?", history, "test")
 	if len(context) == 0 {
 		t.Error("BuildContext returned empty string")
 	}

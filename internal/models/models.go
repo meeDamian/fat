@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/anthropics/anthropic-sdk-go"
@@ -99,11 +100,18 @@ func callGrok(ctx context.Context, mi *types.ModelInfo, prompt string, history [
 	usage := result["usage"].(map[string]any)
 	tokIn = int64(usage["prompt_tokens"].(float64))
 	tokOut = int64(usage["completion_tokens"].(float64))
-	// Parse JSON response
+	// Parse JSON response or structured text
 	if err := json.Unmarshal([]byte(content), &resp); err != nil {
-		// If not JSON, assume plain text
-		resp.Refined = content
-		resp.Suggestions = []string{}
+		// Try structured text format
+		parts := strings.Split(content, "--- SUGGESTIONS ---")
+		if len(parts) >= 2 {
+			resp.Refined = strings.TrimSpace(parts[0])
+			suggText := strings.TrimSpace(parts[1])
+			resp.Suggestions = parseSuggestions(suggText)
+		} else {
+			resp.Refined = content
+			resp.Suggestions = map[string]string{}
+		}
 	}
 	return resp, tokIn, tokOut, nil
 }
@@ -127,8 +135,16 @@ func callOpenAI(ctx context.Context, mi *types.ModelInfo, prompt string, history
 	}
 	content := result.Choices[0].Message.Content
 	if err := json.Unmarshal([]byte(content), &resp); err != nil {
-		resp.Refined = content
-		resp.Suggestions = []string{}
+		// Try structured text format
+		parts := strings.Split(content, "--- SUGGESTIONS ---")
+		if len(parts) >= 2 {
+			resp.Refined = strings.TrimSpace(parts[0])
+			suggText := strings.TrimSpace(parts[1])
+			resp.Suggestions = parseSuggestions(suggText)
+		} else {
+			resp.Refined = content
+			resp.Suggestions = map[string]string{}
+		}
 	}
 	tokIn = result.Usage.PromptTokens
 	tokOut = result.Usage.CompletionTokens
@@ -164,8 +180,16 @@ func callClaude(ctx context.Context, mi *types.ModelInfo, prompt string, history
 	// Assume tool use
 	content := result.Content[0].Text
 	if err := json.Unmarshal([]byte(content), &resp); err != nil {
-		resp.Refined = content
-		resp.Suggestions = []string{}
+		// Try structured text format
+		parts := strings.Split(content, "--- SUGGESTIONS ---")
+		if len(parts) >= 2 {
+			resp.Refined = strings.TrimSpace(parts[0])
+			suggText := strings.TrimSpace(parts[1])
+			resp.Suggestions = parseSuggestions(suggText)
+		} else {
+			resp.Refined = content
+			resp.Suggestions = map[string]string{}
+		}
 	}
 	tokIn = result.Usage.InputTokens
 	tokOut = result.Usage.OutputTokens
@@ -182,8 +206,16 @@ func callGemini(ctx context.Context, mi *types.ModelInfo, prompt string, history
 	}
 	content := result.Text()
 	if err := json.Unmarshal([]byte(content), &resp); err != nil {
-		resp.Refined = content
-		resp.Suggestions = []string{}
+		// Try structured text format
+		parts := strings.Split(content, "--- SUGGESTIONS ---")
+		if len(parts) >= 2 {
+			resp.Refined = strings.TrimSpace(parts[0])
+			suggText := strings.TrimSpace(parts[1])
+			resp.Suggestions = parseSuggestions(suggText)
+		} else {
+			resp.Refined = content
+			resp.Suggestions = map[string]string{}
+		}
 	}
 	// Note: Usage metadata not directly available in this API, set to 0 or estimate
 	tokIn = 0
@@ -194,4 +226,21 @@ func callGemini(ctx context.Context, mi *types.ModelInfo, prompt string, history
 // CostForToks calculates cost
 func CostForToks(mi *types.ModelInfo, tokIn, tokOut int64) float64 {
 	return mi.Rates.In*float64(tokIn) + mi.Rates.Out*float64(tokOut)
+}
+
+// parseSuggestions parses suggestions from text like "To Agent X: suggestion\nTo Agent Y: ..."
+func parseSuggestions(text string) map[string]string {
+	m := make(map[string]string)
+	lines := strings.Split(text, "\n")
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if strings.HasPrefix(line, "To Agent ") {
+			parts := strings.SplitN(line, ": ", 2)
+			if len(parts) == 2 {
+				name := strings.TrimPrefix(parts[0], "To Agent ")
+				m[name] = parts[1]
+			}
+		}
+	}
+	return m
 }

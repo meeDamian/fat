@@ -3,8 +3,6 @@ package main
 import (
 	"bufio"
 	"context"
-	"encoding/binary"
-	"encoding/hex"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -49,14 +47,11 @@ func main() {
 	}
 	question := strings.Join(args, " ")
 
-	// Generate hex timestamp for file prefixes
+	// Generate start timestamp
 	ts := time.Now().Unix()
-	var buf [8]byte
-	binary.BigEndian.PutUint64(buf[:], uint64(ts))
-	hexTS := hex.EncodeToString(buf[:])
 
 	// Set in utils
-	utils.SetHexTS(hexTS)
+	utils.SetStartTS(ts)
 
 	// Load keys
 	loadKeys()
@@ -134,35 +129,23 @@ func main() {
 			if *verbose {
 				fmt.Printf("Starting round %d/%d\n", round+1, numRounds)
 			}
-			results := parallelCall(ctx, question, history, activeModels)
+			results := parallelCall(ctx, question, history, activeModels, round, numRounds)
 			for _, res := range results {
 				if res.Err != nil {
-					if *verbose {
-						log.Printf("Model %s error: %v", res.ID, res.Err)
-					}
+					log.Printf("Model %s error: %v", res.ID, res.Err)
 					continue
 				}
 				history[res.ID] = append(history[res.ID], res.Resp)
-				var prompt string
-				if round == numRounds-1 {
-					prompt = prompts.FinalPrompt(question, utils.BuildContext(question, history))
-				} else {
-					prompt = prompts.RefinePrompt(question, utils.BuildContext(question, history))
-				}
-				utils.Log(fmt.Sprintf("round%d", round+1), models.ModelMap[res.ID].Name, prompt, res.Resp.Refined)
 			}
 			if *verbose {
 				fmt.Printf("Round %d/%d completed\n", round+1, numRounds)
 			}
 		}
 		// Rank
-		ranks := rankModels(ctx, question, history, activeModels)
-		winner := selectWinner(ranks)
+		winner := rankModels(ctx, question, history, activeModels)
 		fmt.Printf("Model %s was decided to be the best.\n\n%s\n", models.ModelMap[winner].Name, history[winner][len(history[winner])-1].Refined)
 		if *verbose {
-			for id, score := range ranks {
-				fmt.Printf("Model %s: %d\n", models.ModelMap[id].Name, score)
-			}
+			fmt.Printf("Winner: %s\n", models.ModelMap[winner].Name)
 		}
 	}
 }
@@ -272,7 +255,7 @@ func estimateBudget(question string, activeModels []*types.ModelInfo, rounds int
 	return total
 }
 
-func parallelCall(ctx context.Context, question string, history types.History, activeModels []*types.ModelInfo) map[string]types.RoundRes {
+func parallelCall(ctx context.Context, question string, history types.History, activeModels []*types.ModelInfo, round int, numRounds int) map[string]types.RoundRes {
 	results := make(map[string]types.RoundRes)
 	var wg sync.WaitGroup
 	ch := make(chan types.RoundRes, len(activeModels))
@@ -280,12 +263,22 @@ func parallelCall(ctx context.Context, question string, history types.History, a
 		wg.Add(1)
 		go func(mi *types.ModelInfo) {
 			defer wg.Done()
-			context := utils.BuildContext(question, history)
-			if !*fullContext {
-				context = utils.CapContext(context, mi.MaxTok)
+			var context string
+			var prompt string
+			if round == 0 {
+				prompt = prompts.InitialPrompt(question)
+			} else {
+				context = utils.BuildContext(question, history, mi.ID)
+				if round == numRounds-1 {
+					prompt = prompts.FinalPrompt(question, context)
+				} else {
+					prompt = prompts.RefinePrompt(question, context, mi, round, numRounds, activeModels)
+				}
 			}
-			prompt := prompts.RefinePrompt(question, context)
 			resp, _, _, err := models.CallModel(ctx, mi, prompt, nil) // history as messages?
+			if err == nil {
+				utils.Log(fmt.Sprintf("round%d", round+1), mi.Name, prompt, resp.Refined)
+			}
 			ch <- types.RoundRes{ID: mi.ID, Resp: resp, Err: err}
 		}(mi)
 	}
@@ -297,45 +290,95 @@ func parallelCall(ctx context.Context, question string, history types.History, a
 	return results
 }
 
-func rankModels(ctx context.Context, question string, history types.History, activeModels []*types.ModelInfo) types.Rank {
-	// Use one model to rank, e.g., Grok
-	grok := models.ModelMap["grok"]
-	prompt := prompts.RankPrompt(question, utils.BuildContext(question, history), activeModels)
+func rankModels(ctx context.Context, question string, history types.History, activeModels []*types.ModelInfo) string {
+	// Build final answers context
+	finalAnswers := "Final answers from all models:\n"
+	nameToId := make(map[string]string)
+	for _, mi := range activeModels {
+		if responses, ok := history[mi.ID]; ok && len(responses) > 0 {
+			final := responses[len(responses)-1].Refined
+			finalAnswers += fmt.Sprintf("Model %s: %s\n", mi.Name, final)
+		}
+		nameToId[mi.Name] = mi.ID
+	}
+	prompt := prompts.RankPrompt(question, finalAnswers, activeModels)
 	if *verbose {
 		fmt.Printf("Sending ranking request: %s\n", prompt)
 	}
-	utils.Log("rank", "ranking", prompt, "")
-	resp, _, _, err := models.CallModel(ctx, grok, prompt, nil)
-	if err != nil {
-		return types.Rank{}
-	}
-	utils.Log("rank", "ranking", "", resp.Refined)
-	if *verbose {
-		fmt.Printf("Ranking response: %s\n", resp.Refined)
-	}
-	// Parse ranking model1 > model2 > model3
-	ranking := strings.Split(resp.Refined, " > ")
-	nameToId := make(map[string]string)
+	// Collect votes from all models
+	votes := make(map[string]int)
+	var wg sync.WaitGroup
+	ch := make(chan struct {
+		id   string
+		vote string
+		err  error
+	}, len(activeModels))
 	for _, mi := range activeModels {
-		nameToId[mi.Name] = mi.ID
+		wg.Add(1)
+		go func(mi *types.ModelInfo) {
+			defer wg.Done()
+			resp, _, _, err := models.CallModel(ctx, mi, prompt, nil)
+			if err != nil {
+				ch <- struct {
+					id   string
+					vote string
+					err  error
+				}{mi.ID, "", err}
+				return
+			}
+			utils.Log("rank", mi.Name, prompt, resp.Refined)
+			vote := strings.TrimSpace(resp.Refined)
+			ch <- struct {
+				id   string
+				vote string
+				err  error
+			}{mi.ID, vote, nil}
+		}(mi)
 	}
-	rank := make(types.Rank)
-	for i, name := range ranking {
-		if id, ok := nameToId[strings.TrimSpace(name)]; ok {
-			rank[id] = len(ranking) - i
+	wg.Wait()
+	close(ch)
+	allSelf := true
+	for res := range ch {
+		if res.err != nil {
+			if *verbose {
+				log.Printf("Ranking error for %s: %v", res.id, res.err)
+			}
+			continue
+		}
+		if res.vote != "" {
+			votes[res.vote]++
+			if res.vote != models.ModelMap[res.id].Name {
+				allSelf = false
+			}
 		}
 	}
-	return rank
-}
-
-func selectWinner(ranks types.Rank) string {
-	maxScore := 0
-	winner := ""
-	for id, score := range ranks {
-		if score > maxScore {
-			maxScore = score
-			winner = id
+	// Find winner with most votes
+	maxVotes := 0
+	winnerName := ""
+	for name, count := range votes {
+		if count > maxVotes {
+			maxVotes = count
+			winnerName = name
 		}
 	}
-	return winner
+	if allSelf && len(votes) > 1 {
+		// All voted for self, call cheap model to decide
+		grok := models.ModelMap["grok"]
+		votesStr := "Votes:\n"
+		for name, count := range votes {
+			votesStr += fmt.Sprintf("%s: %d votes\n", name, count)
+		}
+		tiePrompt := fmt.Sprintf("The models voted for themselves in a tie. Based on the votes below, decide the overall winner.\n%s\nRespond with only the winning model name.", votesStr)
+		resp, _, _, err := models.CallModel(ctx, grok, tiePrompt, nil)
+		if err == nil {
+			utils.Log("rank", "grok", tiePrompt, resp.Refined)
+			winnerName = strings.TrimSpace(resp.Refined)
+		}
+	}
+	winnerID, ok := nameToId[winnerName]
+	if !ok {
+		// Fallback
+		winnerID = activeModels[0].ID
+	}
+	return winnerID
 }
