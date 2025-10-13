@@ -9,7 +9,7 @@ import (
 const ProcessDesc = "You are an AI assistant tasked with answering a question through iterative refinement. For each round, provide a refined answer and suggestions for further improvement."
 
 func InitialPrompt(question string) string {
-	return fmt.Sprintf("Question: %s\n\n%s\n\nProvide a refined answer and suggestions.", question, ProcessDesc)
+	return question
 }
 
 func RefinePrompt(question, context string) string {

@@ -18,10 +18,16 @@ import (
 	"github.com/meedamian/fat/internal/types"
 )
 
+var base64TS string
+
+func SetBase64TS(ts string) {
+	base64TS = ts
+}
+
 // Log appends a log entry to the model's log file
 func Log(modelName, prompt, response string) {
 	ts := time.Now().Unix()
-	filename := fmt.Sprintf("answers/%d_%s.log", ts, modelName)
+	filename := fmt.Sprintf("answers/%s_%d_%s.log", base64TS, ts, modelName)
 	os.MkdirAll("answers", 0755)
 	file, err := os.OpenFile(filename, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {

@@ -3,14 +3,17 @@ package main
 import (
 	"bufio"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"flag"
 	"fmt"
 	"log"
 	"os"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/joho/godotenv"
 	"github.com/meedamian/fat/internal/constants"
@@ -46,6 +49,15 @@ func main() {
 	}
 	question := strings.Join(args, " ")
 
+	// Generate base64 timestamp for file prefixes
+	ts := time.Now().Unix()
+	base64TS := base64.StdEncoding.EncodeToString([]byte(strconv.FormatInt(ts, 10)))
+
+	// Set in utils or something, but since utils.Log is called, modify utils.Log to take prefix.
+
+	// For now, global
+	utils.SetBase64TS(base64TS)
+
 	// Load keys
 	loadKeys()
 
@@ -73,7 +85,17 @@ func main() {
 	// Determine rounds
 	numRounds := *roundsFlag
 	if numRounds == -1 {
-		numRounds = estimateRounds(question, activeModels)
+		if *verbose {
+			fmt.Printf("Estimating rounds for question: %s\n", question)
+		}
+		if len(activeModels) == 1 {
+			numRounds = 1
+		} else {
+			numRounds = estimateRounds(question, activeModels)
+		}
+	}
+	if *verbose {
+		fmt.Printf("Decided on %d rounds\n", numRounds)
 	}
 	if numRounds > 1 && len(activeModels) == 1 {
 		log.Fatal("Rounds >1 require multiple models")
@@ -93,9 +115,15 @@ func main() {
 		// Single mode
 		mi := activeModels[0]
 		prompt := prompts.InitialPrompt(question)
-		resp, _, _, err := models.CallModel(ctx, mi, prompt, nil)
+		if *verbose {
+			fmt.Printf("Calling model %s with prompt: %s\n", mi.Name, prompt)
+		}
+		resp, tokIn, tokOut, err := models.CallModel(ctx, mi, prompt, nil)
 		if err != nil {
 			log.Fatal(err)
+		}
+		if *verbose {
+			fmt.Printf("Response from %s: %s (tokens in: %d, out: %d)\n", mi.Name, resp.Refined, tokIn, tokOut)
 		}
 		utils.Log(mi.Name, prompt, resp.Refined)
 		fmt.Println(resp.Refined)
@@ -103,6 +131,9 @@ func main() {
 		// Multi mode
 		history := make(types.History)
 		for round := 0; round < numRounds; round++ {
+			if *verbose {
+				fmt.Printf("Starting round %d/%d\n", round+1, numRounds)
+			}
 			results := parallelCall(ctx, question, history, activeModels)
 			for _, res := range results {
 				if res.Err != nil {
@@ -114,6 +145,9 @@ func main() {
 				history[res.ID] = append(history[res.ID], res.Resp)
 				prompt := prompts.RefinePrompt(question, utils.BuildContext(question, history))
 				utils.Log(models.ModelMap[res.ID].Name, prompt, res.Resp.Refined)
+			}
+			if *verbose {
+				fmt.Printf("Round %d/%d completed\n", round+1, numRounds)
 			}
 		}
 		// Rank
@@ -246,9 +280,17 @@ func rankModels(ctx context.Context, question string, history types.History, act
 	// Use one model to rank, e.g., Grok
 	grok := models.ModelMap["grok"]
 	prompt := prompts.RankPrompt(question, utils.BuildContext(question, history), activeModels)
+	if *verbose {
+		fmt.Printf("Sending ranking request: %s\n", prompt)
+	}
+	utils.Log("ranking", prompt, "")
 	resp, _, _, err := models.CallModel(ctx, grok, prompt, nil)
 	if err != nil {
 		return types.Rank{}
+	}
+	utils.Log("ranking", "", resp.Refined)
+	if *verbose {
+		fmt.Printf("Ranking response: %s\n", resp.Refined)
 	}
 	// Parse ranking A > B > C
 	ranking := strings.Split(resp.Refined, " > ")

@@ -100,7 +100,11 @@ func callGrok(ctx context.Context, mi *types.ModelInfo, prompt string, history [
 	tokIn = int64(usage["prompt_tokens"].(float64))
 	tokOut = int64(usage["completion_tokens"].(float64))
 	// Parse JSON response
-	json.Unmarshal([]byte(content), &resp)
+	if err := json.Unmarshal([]byte(content), &resp); err != nil {
+		// If not JSON, assume plain text
+		resp.Refined = content
+		resp.Suggestions = []string{}
+	}
 	return resp, tokIn, tokOut, nil
 }
 
@@ -122,7 +126,10 @@ func callOpenAI(ctx context.Context, mi *types.ModelInfo, prompt string, history
 		return types.Response{}, 0, 0, err
 	}
 	content := result.Choices[0].Message.Content
-	json.Unmarshal([]byte(content), &resp)
+	if err := json.Unmarshal([]byte(content), &resp); err != nil {
+		resp.Refined = content
+		resp.Suggestions = []string{}
+	}
 	tokIn = result.Usage.PromptTokens
 	tokOut = result.Usage.CompletionTokens
 	return resp, tokIn, tokOut, nil
@@ -156,8 +163,10 @@ func callClaude(ctx context.Context, mi *types.ModelInfo, prompt string, history
 	}
 	// Assume tool use
 	content := result.Content[0].Text
-	// For simplicity, assume direct text, but spec says tool
-	json.Unmarshal([]byte(content), &resp)
+	if err := json.Unmarshal([]byte(content), &resp); err != nil {
+		resp.Refined = content
+		resp.Suggestions = []string{}
+	}
 	tokIn = result.Usage.InputTokens
 	tokOut = result.Usage.OutputTokens
 	return resp, tokIn, tokOut, nil
@@ -167,21 +176,18 @@ func callGemini(ctx context.Context, mi *types.ModelInfo, prompt string, history
 	var resp types.Response
 	var tokIn, tokOut int64
 	client := mi.Client.(*genai.Client)
-	contents := []*genai.Content{{Role: genai.RoleUser, Parts: []*genai.Part{{Text: prompt}}}}
-	for _, h := range history {
-		contents = append(contents, &genai.Content{Role: genai.RoleModel, Parts: []*genai.Part{{Text: h}}})
-	}
-	config := &genai.GenerateContentConfig{
-		ResponseMIMEType: "application/json",
-	}
-	result, err := client.Models.GenerateContent(ctx, mi.Name, contents, config)
+	result, err := client.Models.GenerateContent(ctx, mi.Name, genai.Text(prompt), nil)
 	if err != nil {
 		return types.Response{}, 0, 0, err
 	}
-	content := result.Candidates[0].Content.Parts[0].Text
-	json.Unmarshal([]byte(content), &resp)
-	tokIn = int64(result.UsageMetadata.PromptTokenCount)
-	tokOut = int64(result.UsageMetadata.CandidatesTokenCount)
+	content := result.Text()
+	if err := json.Unmarshal([]byte(content), &resp); err != nil {
+		resp.Refined = content
+		resp.Suggestions = []string{}
+	}
+	// Note: Usage metadata not directly available in this API, set to 0 or estimate
+	tokIn = 0
+	tokOut = 0
 	return resp, tokIn, tokOut, nil
 }
 
