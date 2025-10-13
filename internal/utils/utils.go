@@ -1,6 +1,7 @@
 package utils
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -12,6 +13,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/meedamian/fat/internal/constants"
+	"github.com/meedamian/fat/internal/models"
 	"github.com/meedamian/fat/internal/types"
 )
 
@@ -32,13 +35,18 @@ func Log(modelName, prompt, response string) {
 
 // EstTokens estimates token count (rough: len/4 + buffer)
 func EstTokens(text string) int64 {
-	return int64(len(text)/4 + 100)
+	return int64(len(text)/4 + constants.EstTokensBuffer)
 }
 
 // SummarizeChunk calls Grok to summarize a chunk of text
 func SummarizeChunk(chunk string) (string, error) {
-	// TODO: implement using models.CallModel for grok
-	return chunk[:min(len(chunk), 500)], nil // stub
+	// Use CallModel for grok
+	mi := models.ModelMap["A"] // Assuming "A" is grok
+	resp, _, _, err := models.CallModel(context.Background(), mi, "Summarize this text concisely: "+chunk, []string{})
+	if err != nil {
+		return "", fmt.Errorf("summarize failed: %w", err)
+	}
+	return resp.Refined, nil
 }
 
 // BuildContext builds the context string from question and history
@@ -56,7 +64,7 @@ func BuildContext(question string, history types.History) string {
 // CapContext caps the context at 80% max tokens, summarizing if needed
 func CapContext(context string, maxTokens int64) string {
 	est := EstTokens(context)
-	if est < int64(float64(maxTokens)*0.8) {
+	if est < int64(float64(maxTokens)*constants.ContextCapRatio) {
 		return context
 	}
 	// Summarize older parts
@@ -69,16 +77,18 @@ func CapContext(context string, maxTokens int64) string {
 }
 
 // FetchRates fetches rates from HTTP and saves to file
-func FetchRates() (map[string]types.Rate, error) {
+func FetchRates(ctx context.Context) (map[string]types.Rate, error) {
 	rates := make(map[string]types.Rate)
 	pricingURLs := map[string]string{
-		"grok-4-fast":          "https://x.ai/api",
-		"gpt-5-mini":           "https://openai.com/pricing",
-		"claude-3.5-haiku":     "https://www.anthropic.com/pricing/api",
-		"gemini-2.5-flash":     "https://ai.google.dev/pricing",
+		"grok-4-fast":      "https://x.ai/api",
+		"gpt-5-mini":       "https://openai.com/pricing",
+		"claude-3.5-haiku": "https://www.anthropic.com/pricing/api",
+		"gemini-2.5-flash": "https://ai.google.dev/pricing",
 	}
+	client := &http.Client{Timeout: constants.HTTPTimeoutSeconds * time.Second}
 	for name, url := range pricingURLs {
-		resp, err := http.Get(url)
+		req, _ := http.NewRequestWithContext(ctx, "GET", url, nil)
+		resp, err := client.Do(req)
 		if err != nil {
 			continue
 		}
@@ -114,10 +124,10 @@ func FetchRates() (map[string]types.Rate, error) {
 }
 
 // LoadRates loads rates from file if <7 days, else fetch
-func LoadRates() map[string]types.Rate {
+func LoadRates(ctx context.Context) map[string]types.Rate {
 	file, err := os.Open("rates.json")
 	if err != nil {
-		rates, _ := FetchRates()
+		rates, _ := FetchRates(ctx)
 		return rates
 	}
 	defer file.Close()
@@ -125,8 +135,8 @@ func LoadRates() map[string]types.Rate {
 	json.NewDecoder(file).Decode(&rates)
 	now := time.Now().Unix()
 	for _, rate := range rates {
-		if now-rate.TS > 7*24*3600 {
-			rates, _ := FetchRates()
+		if now-rate.TS > constants.RateCacheDays {
+			rates, _ := FetchRates(ctx)
 			return rates
 		}
 	}

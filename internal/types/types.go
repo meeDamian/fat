@@ -2,8 +2,8 @@ package types
 
 // Response represents a model's refined answer and suggestions
 type Response struct {
-	Refined      string   `json:"refined"`
-	Suggestions  []string `json:"suggestions"`
+	Refined     string   `json:"refined"`
+	Suggestions []string `json:"suggestions"`
 }
 
 // History maps model IDs to their response history

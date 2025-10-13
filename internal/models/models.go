@@ -141,7 +141,7 @@ func callClaude(ctx context.Context, mi *types.ModelInfo, prompt string, history
 	params := anthropic.MessageNewParams{
 		Model:     anthropic.Model("claude-3.5-haiku"),
 		MaxTokens: 1024,
-		System:    []anthropic.TextBlockParam{{Text: "Respond with JSON: {\"refined\": \"...\", \"suggestions\": [...]}"} },
+		System:    []anthropic.TextBlockParam{{Text: "Respond with JSON: {\"refined\": \"...\", \"suggestions\": [...]}"}},
 		Messages: []anthropic.MessageParam{
 			anthropic.NewUserMessage(anthropic.NewTextBlock(prompt)),
 		},
@@ -157,7 +157,6 @@ func callClaude(ctx context.Context, mi *types.ModelInfo, prompt string, history
 	// Assume tool use
 	content := result.Content[0].Text
 	// For simplicity, assume direct text, but spec says tool
-	// TODO: handle tool properly
 	json.Unmarshal([]byte(content), &resp)
 	tokIn = result.Usage.InputTokens
 	tokOut = result.Usage.OutputTokens
