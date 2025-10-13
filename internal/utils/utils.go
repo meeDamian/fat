@@ -18,16 +18,16 @@ import (
 	"github.com/meedamian/fat/internal/types"
 )
 
-var base64TS string
+var hexTS string
 
-func SetBase64TS(ts string) {
-	base64TS = ts
+func SetHexTS(ts string) {
+	hexTS = ts
 }
 
 // Log appends a log entry to the model's log file
-func Log(modelName, prompt, response string) {
+func Log(logType, modelName, prompt, response string) {
 	ts := time.Now().Unix()
-	filename := fmt.Sprintf("answers/%s_%d_%s.log", base64TS, ts, modelName)
+	filename := fmt.Sprintf("answers/%s_%d_%s_%s.log", hexTS, ts, logType, modelName)
 	os.MkdirAll("answers", 0755)
 	file, err := os.OpenFile(filename, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {

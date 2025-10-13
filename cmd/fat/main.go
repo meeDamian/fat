@@ -3,14 +3,14 @@ package main
 import (
 	"bufio"
 	"context"
-	"encoding/base64"
+	"encoding/binary"
+	"encoding/hex"
 	"encoding/json"
 	"flag"
 	"fmt"
 	"log"
 	"os"
 	"slices"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -24,18 +24,18 @@ import (
 )
 
 var (
-	roundsFlag    = flag.Int("rounds", -1, "Number of rounds (1-10, -1=auto)")
-	fullContext   = flag.Bool("full-context", false, "Use full history")
-	verbose       = flag.Bool("verbose", false, "Verbose output")
-	budget        = flag.Bool("budget", false, "Estimate and confirm budget")
-	grokFlag      = flag.Bool("grok", false, "Include Grok model")
-	gptFlag       = flag.Bool("gpt", false, "Include GPT model")
-	claudeFlag    = flag.Bool("claude", false, "Include Claude model")
-	geminiFlag    = flag.Bool("gemini", false, "Include Gemini model")
-	noGrokFlag    = flag.Bool("no-grok", false, "Exclude Grok model")
-	noGptFlag     = flag.Bool("no-gpt", false, "Exclude GPT model")
-	noClaudeFlag  = flag.Bool("no-claude", false, "Exclude Claude model")
-	noGeminiFlag  = flag.Bool("no-gemini", false, "Exclude Gemini model")
+	roundsFlag   = flag.Int("rounds", -1, "Number of rounds (1-10, -1=auto)")
+	fullContext  = flag.Bool("full-context", false, "Use full history")
+	verbose      = flag.Bool("verbose", false, "Verbose output")
+	budget       = flag.Bool("budget", false, "Estimate and confirm budget")
+	grokFlag     = flag.Bool("grok", false, "Include Grok model")
+	gptFlag      = flag.Bool("gpt", false, "Include GPT model")
+	claudeFlag   = flag.Bool("claude", false, "Include Claude model")
+	geminiFlag   = flag.Bool("gemini", false, "Include Gemini model")
+	noGrokFlag   = flag.Bool("no-grok", false, "Exclude Grok model")
+	noGptFlag    = flag.Bool("no-gpt", false, "Exclude GPT model")
+	noClaudeFlag = flag.Bool("no-claude", false, "Exclude Claude model")
+	noGeminiFlag = flag.Bool("no-gemini", false, "Exclude Gemini model")
 )
 
 func init() {
@@ -49,14 +49,14 @@ func main() {
 	}
 	question := strings.Join(args, " ")
 
-	// Generate base64 timestamp for file prefixes
+	// Generate hex timestamp for file prefixes
 	ts := time.Now().Unix()
-	base64TS := base64.StdEncoding.EncodeToString([]byte(strconv.FormatInt(ts, 10)))
+	var buf [8]byte
+	binary.BigEndian.PutUint64(buf[:], uint64(ts))
+	hexTS := hex.EncodeToString(buf[:])
 
-	// Set in utils or something, but since utils.Log is called, modify utils.Log to take prefix.
-
-	// For now, global
-	utils.SetBase64TS(base64TS)
+	// Set in utils
+	utils.SetHexTS(hexTS)
 
 	// Load keys
 	loadKeys()
@@ -125,7 +125,7 @@ func main() {
 		if *verbose {
 			fmt.Printf("Response from %s: %s (tokens in: %d, out: %d)\n", mi.Name, resp.Refined, tokIn, tokOut)
 		}
-		utils.Log(mi.Name, prompt, resp.Refined)
+		utils.Log("single", mi.Name, prompt, resp.Refined)
 		fmt.Println(resp.Refined)
 	} else {
 		// Multi mode
@@ -143,8 +143,13 @@ func main() {
 					continue
 				}
 				history[res.ID] = append(history[res.ID], res.Resp)
-				prompt := prompts.RefinePrompt(question, utils.BuildContext(question, history))
-				utils.Log(models.ModelMap[res.ID].Name, prompt, res.Resp.Refined)
+				var prompt string
+				if round == numRounds-1 {
+					prompt = prompts.FinalPrompt(question, utils.BuildContext(question, history))
+				} else {
+					prompt = prompts.RefinePrompt(question, utils.BuildContext(question, history))
+				}
+				utils.Log(fmt.Sprintf("round%d", round+1), models.ModelMap[res.ID].Name, prompt, res.Resp.Refined)
 			}
 			if *verbose {
 				fmt.Printf("Round %d/%d completed\n", round+1, numRounds)
@@ -215,15 +220,31 @@ func loadKeys() {
 func filterModels() []*types.ModelInfo {
 	var active []*types.ModelInfo
 	includes := []string{}
-	if *grokFlag { includes = append(includes, "grok") }
-	if *gptFlag { includes = append(includes, "gpt") }
-	if *claudeFlag { includes = append(includes, "claude") }
-	if *geminiFlag { includes = append(includes, "gemini") }
+	if *grokFlag {
+		includes = append(includes, "grok")
+	}
+	if *gptFlag {
+		includes = append(includes, "gpt")
+	}
+	if *claudeFlag {
+		includes = append(includes, "claude")
+	}
+	if *geminiFlag {
+		includes = append(includes, "gemini")
+	}
 	excludes := []string{}
-	if *noGrokFlag { excludes = append(excludes, "grok") }
-	if *noGptFlag { excludes = append(excludes, "gpt") }
-	if *noClaudeFlag { excludes = append(excludes, "claude") }
-	if *noGeminiFlag { excludes = append(excludes, "gemini") }
+	if *noGrokFlag {
+		excludes = append(excludes, "grok")
+	}
+	if *noGptFlag {
+		excludes = append(excludes, "gpt")
+	}
+	if *noClaudeFlag {
+		excludes = append(excludes, "claude")
+	}
+	if *noGeminiFlag {
+		excludes = append(excludes, "gemini")
+	}
 	for _, mi := range models.ModelMap {
 		if len(includes) > 0 && !slices.Contains(includes, mi.ID) {
 			continue
@@ -283,25 +304,24 @@ func rankModels(ctx context.Context, question string, history types.History, act
 	if *verbose {
 		fmt.Printf("Sending ranking request: %s\n", prompt)
 	}
-	utils.Log("ranking", prompt, "")
+	utils.Log("rank", "ranking", prompt, "")
 	resp, _, _, err := models.CallModel(ctx, grok, prompt, nil)
 	if err != nil {
 		return types.Rank{}
 	}
-	utils.Log("ranking", "", resp.Refined)
+	utils.Log("rank", "ranking", "", resp.Refined)
 	if *verbose {
 		fmt.Printf("Ranking response: %s\n", resp.Refined)
 	}
-	// Parse ranking A > B > C
+	// Parse ranking model1 > model2 > model3
 	ranking := strings.Split(resp.Refined, " > ")
-	modelLetters := map[string]string{"grok": "A", "gpt": "B", "claude": "C", "gemini": "D"}
-	letterToId := make(map[string]string)
-	for id, letter := range modelLetters {
-		letterToId[letter] = id
+	nameToId := make(map[string]string)
+	for _, mi := range activeModels {
+		nameToId[mi.Name] = mi.ID
 	}
 	rank := make(types.Rank)
-	for i, letter := range ranking {
-		if id, ok := letterToId[strings.TrimSpace(letter)]; ok {
+	for i, name := range ranking {
+		if id, ok := nameToId[strings.TrimSpace(name)]; ok {
 			rank[id] = len(ranking) - i
 		}
 	}

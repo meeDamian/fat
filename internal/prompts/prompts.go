@@ -16,12 +16,14 @@ func RefinePrompt(question, context string) string {
 	return fmt.Sprintf("Question: %s\n\nPrevious context:\n%s\n\n%s\n\nRefine the answer further and provide new suggestions.", question, context, ProcessDesc)
 }
 
+func FinalPrompt(question, context string) string {
+	return fmt.Sprintf("Question: %s\n\nPrevious context:\n%s\n\nThis is the final round. After considering everything from previous rounds, reply only with your final answer.", question, context)
+}
+
 func RankPrompt(question, context string, activeModels []*types.ModelInfo) string {
-	modelLetters := map[string]string{"grok": "A", "gpt": "B", "claude": "C", "gemini": "D"}
-	prompt := fmt.Sprintf("Question: %s\n\nContext:\n%s\n\nRank the models from best to worst (A > B > C means A is best):\n", question, context)
+	prompt := fmt.Sprintf("Question: %s\n\nContext:\n%s\n\nRank the models from best to worst:\n", question, context)
 	for _, mi := range activeModels {
-		letter := modelLetters[mi.ID]
-		prompt += fmt.Sprintf("%s: %s\n", letter, mi.Name)
+		prompt += fmt.Sprintf("- %s\n", mi.Name)
 	}
-	return prompt + "\nProvide the ranking in the format: A > B > C"
+	return prompt + "\nProvide the ranking in the format: model1 > model2 > model3"
 }
