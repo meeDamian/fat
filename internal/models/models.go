@@ -76,7 +76,7 @@ func callGrok(ctx context.Context, mi *types.ModelInfo, prompt string, history [
 	for _, h := range history {
 		messages = append(messages, map[string]string{"role": "assistant", "content": h})
 	}
-	body := map[string]interface{}{
+	body := map[string]any{
 		"model":    mi.Name,
 		"messages": messages,
 	}
@@ -90,13 +90,13 @@ func callGrok(ctx context.Context, mi *types.ModelInfo, prompt string, history [
 		return types.Response{}, 0, 0, err
 	}
 	defer res.Body.Close()
-	var result map[string]interface{}
+	var result map[string]any
 	json.NewDecoder(res.Body).Decode(&result)
 	if res.StatusCode != 200 {
 		return types.Response{}, 0, 0, fmt.Errorf("grok error: %v", result)
 	}
-	content := result["choices"].([]interface{})[0].(map[string]interface{})["message"].(map[string]interface{})["content"].(string)
-	usage := result["usage"].(map[string]interface{})
+	content := result["choices"].([]any)[0].(map[string]any)["message"].(map[string]any)["content"].(string)
+	usage := result["usage"].(map[string]any)
 	tokIn = int64(usage["prompt_tokens"].(float64))
 	tokOut = int64(usage["completion_tokens"].(float64))
 	// Parse JSON response
