@@ -119,7 +119,7 @@ func callGrok(ctx context.Context, mi *types.ModelInfo, prompt string, history [
 func callOpenAI(ctx context.Context, mi *types.ModelInfo, prompt string, history []string) (types.Response, int64, int64, error) {
 	var resp types.Response
 	var tokIn, tokOut int64
-	client := mi.Client.(*openai.Client)
+	client := mi.Client.(openai.Client)
 	params := openai.ChatCompletionNewParams{
 		Model: openai.ChatModel("gpt-5-mini"),
 		Messages: []openai.ChatCompletionMessageParamUnion{

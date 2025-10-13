@@ -69,7 +69,8 @@ func BuildContext(question string, history types.History, currentID string) stri
 		}
 		if len(responses) > 0 {
 			last := responses[len(responses)-1]
-			context += fmt.Sprintf("Model %s:\nAnswer: %s\n", id, last.Refined)
+			shortName := strings.Split(id, "-")[0]
+			context += fmt.Sprintf("%s previous answer: %s\n", shortName, last.Refined)
 			if len(last.Suggestions) > 0 {
 				suggJSON, _ := json.Marshal(last.Suggestions)
 				context += fmt.Sprintf("Suggestions: %s\n", suggJSON)

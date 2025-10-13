@@ -270,14 +270,14 @@ func parallelCall(ctx context.Context, question string, history types.History, a
 			} else {
 				context = utils.BuildContext(question, history, mi.ID)
 				if round == numRounds-1 {
-					prompt = prompts.FinalPrompt(question, context)
+					prompt = prompts.FinalPrompt(question, context, mi, round, numRounds, activeModels)
 				} else {
 					prompt = prompts.RefinePrompt(question, context, mi, round, numRounds, activeModels)
 				}
 			}
 			resp, _, _, err := models.CallModel(ctx, mi, prompt, nil) // history as messages?
 			if err == nil {
-				utils.Log(fmt.Sprintf("round%d", round+1), mi.Name, prompt, resp.Refined)
+				utils.Log(fmt.Sprintf("R%d", round+1), mi.Name, prompt, resp.Refined)
 			}
 			ch <- types.RoundRes{ID: mi.ID, Resp: resp, Err: err}
 		}(mi)
@@ -297,47 +297,47 @@ func rankModels(ctx context.Context, question string, history types.History, act
 	for _, mi := range activeModels {
 		if responses, ok := history[mi.ID]; ok && len(responses) > 0 {
 			final := responses[len(responses)-1].Refined
-			finalAnswers += fmt.Sprintf("Model %s: %s\n", mi.Name, final)
+			finalAnswers += fmt.Sprintf("Model %s:\n%s\n\n", mi.Name, final)
 		}
 		nameToId[mi.Name] = mi.ID
 	}
-	prompt := prompts.RankPrompt(question, finalAnswers, activeModels)
-	if *verbose {
-		fmt.Printf("Sending ranking request: %s\n", prompt)
-	}
-	// Collect votes from all models
-	votes := make(map[string]int)
+	// Collect rankings from all models
+	firstPlaceVotes := make(map[string]int)
 	var wg sync.WaitGroup
 	ch := make(chan struct {
-		id   string
-		vote string
-		err  error
+		id       string
+		ranking  []string
+		err      error
 	}, len(activeModels))
 	for _, mi := range activeModels {
 		wg.Add(1)
 		go func(mi *types.ModelInfo) {
 			defer wg.Done()
+			prompt := prompts.RankPrompt(question, finalAnswers, activeModels, mi)
 			resp, _, _, err := models.CallModel(ctx, mi, prompt, nil)
 			if err != nil {
 				ch <- struct {
-					id   string
-					vote string
-					err  error
-				}{mi.ID, "", err}
+					id       string
+					ranking  []string
+					err      error
+				}{mi.ID, nil, err}
 				return
 			}
 			utils.Log("rank", mi.Name, prompt, resp.Refined)
-			vote := strings.TrimSpace(resp.Refined)
+			rankingStr := strings.TrimSpace(resp.Refined)
+			ranking := strings.Split(rankingStr, " > ")
+			for i, name := range ranking {
+				ranking[i] = strings.TrimSpace(name)
+			}
 			ch <- struct {
-				id   string
-				vote string
-				err  error
-			}{mi.ID, vote, nil}
+				id       string
+				ranking  []string
+				err      error
+			}{mi.ID, ranking, nil}
 		}(mi)
 	}
 	wg.Wait()
 	close(ch)
-	allSelf := true
 	for res := range ch {
 		if res.err != nil {
 			if *verbose {
@@ -345,39 +345,26 @@ func rankModels(ctx context.Context, question string, history types.History, act
 			}
 			continue
 		}
-		if res.vote != "" {
-			votes[res.vote]++
-			if res.vote != models.ModelMap[res.id].Name {
-				allSelf = false
-			}
+		if len(res.ranking) > 0 {
+			first := res.ranking[0]
+			firstPlaceVotes[first]++
 		}
 	}
-	// Find winner with most votes
+	// Find winner with most first-place votes
 	maxVotes := 0
 	winnerName := ""
-	for name, count := range votes {
+	for name, count := range firstPlaceVotes {
 		if count > maxVotes {
 			maxVotes = count
 			winnerName = name
 		}
 	}
-	if allSelf && len(votes) > 1 {
-		// All voted for self, call cheap model to decide
-		grok := models.ModelMap["grok"]
-		votesStr := "Votes:\n"
-		for name, count := range votes {
-			votesStr += fmt.Sprintf("%s: %d votes\n", name, count)
-		}
-		tiePrompt := fmt.Sprintf("The models voted for themselves in a tie. Based on the votes below, decide the overall winner.\n%s\nRespond with only the winning model name.", votesStr)
-		resp, _, _, err := models.CallModel(ctx, grok, tiePrompt, nil)
-		if err == nil {
-			utils.Log("rank", "grok", tiePrompt, resp.Refined)
-			winnerName = strings.TrimSpace(resp.Refined)
-		}
+	if winnerName == "" {
+		// Fallback
+		winnerName = activeModels[0].Name
 	}
 	winnerID, ok := nameToId[winnerName]
 	if !ok {
-		// Fallback
 		winnerID = activeModels[0].ID
 	}
 	return winnerID
