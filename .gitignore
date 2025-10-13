@@ -1,0 +1,10 @@
+fat
+vendor/
+go.work
+answers/
+rates.json
+keys.json
+.env
+*.log
+.vscode/
+.idea/
