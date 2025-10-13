@@ -14,7 +14,7 @@ func TestEstTokens(t *testing.T) {
 	}{
 		{"hello", 101},
 		{"", 100},
-		{"this is a longer text", 126},
+		{"this is a longer text", 105},
 	}
 	for _, tt := range tests {
 		result := EstTokens(tt.input)
