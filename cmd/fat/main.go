@@ -25,19 +25,18 @@ var (
 	fullContext   = flag.Bool("full-context", false, "Use full history")
 	verbose       = flag.Bool("verbose", false, "Verbose output")
 	budget        = flag.Bool("budget", false, "Estimate and confirm budget")
-	modelIncludes []string
-	modelExcludes []string
+	grokFlag      = flag.Bool("grok", false, "Include Grok model")
+	gptFlag       = flag.Bool("gpt", false, "Include GPT model")
+	claudeFlag    = flag.Bool("claude", false, "Include Claude model")
+	geminiFlag    = flag.Bool("gemini", false, "Include Gemini model")
+	noGrokFlag    = flag.Bool("no-grok", false, "Exclude Grok model")
+	noGptFlag     = flag.Bool("no-gpt", false, "Exclude GPT model")
+	noClaudeFlag  = flag.Bool("no-claude", false, "Exclude Claude model")
+	noGeminiFlag  = flag.Bool("no-gemini", false, "Exclude Gemini model")
 )
 
 func init() {
-	flag.Var((*stringSlice)(&modelIncludes), "model", "Include model (A/B/C/D)")
-	flag.Var((*stringSlice)(&modelExcludes), "no-model", "Exclude model (A/B/C/D)")
 }
-
-type stringSlice []string
-
-func (s *stringSlice) String() string         { return strings.Join(*s, ",") }
-func (s *stringSlice) Set(value string) error { *s = append(*s, value); return nil }
 
 func main() {
 	flag.Parse()
@@ -62,6 +61,13 @@ func main() {
 	activeModels := filterModels()
 	if len(activeModels) == 0 {
 		log.Fatal("At least one model required")
+	}
+
+	// Check keys for active models
+	for _, mi := range activeModels {
+		if mi.APIKey == "" {
+			log.Fatalf("API key for %s missing", mi.Name)
+		}
 	}
 
 	// Determine rounds
@@ -113,10 +119,10 @@ func main() {
 		// Rank
 		ranks := rankModels(ctx, question, history, activeModels)
 		winner := selectWinner(ranks)
-		fmt.Printf("Model %s was decided to be the best.\n\n%s\n", winner, history[winner][len(history[winner])-1].Refined)
+		fmt.Printf("Model %s was decided to be the best.\n\n%s\n", models.ModelMap[winner].Name, history[winner][len(history[winner])-1].Refined)
 		if *verbose {
 			for id, score := range ranks {
-				fmt.Printf("Model %s: %d\n", id, score)
+				fmt.Printf("Model %s: %d\n", models.ModelMap[id].Name, score)
 			}
 		}
 	}
@@ -169,21 +175,26 @@ func loadKeys() {
 			}
 		}
 	}
-	// Check
-	for _, mi := range models.ModelMap {
-		if mi.APIKey == "" {
-			log.Fatalf("API key for %s missing", mi.Name)
-		}
-	}
+	// Check removed, done in main for active models
 }
 
 func filterModels() []*types.ModelInfo {
 	var active []*types.ModelInfo
+	includes := []string{}
+	if *grokFlag { includes = append(includes, "grok") }
+	if *gptFlag { includes = append(includes, "gpt") }
+	if *claudeFlag { includes = append(includes, "claude") }
+	if *geminiFlag { includes = append(includes, "gemini") }
+	excludes := []string{}
+	if *noGrokFlag { excludes = append(excludes, "grok") }
+	if *noGptFlag { excludes = append(excludes, "gpt") }
+	if *noClaudeFlag { excludes = append(excludes, "claude") }
+	if *noGeminiFlag { excludes = append(excludes, "gemini") }
 	for _, mi := range models.ModelMap {
-		if len(modelIncludes) > 0 && !slices.Contains(modelIncludes, mi.ID) {
+		if len(includes) > 0 && !slices.Contains(includes, mi.ID) {
 			continue
 		}
-		if slices.Contains(modelExcludes, mi.ID) {
+		if slices.Contains(excludes, mi.ID) {
 			continue
 		}
 		active = append(active, mi)
@@ -233,22 +244,24 @@ func parallelCall(ctx context.Context, question string, history types.History, a
 
 func rankModels(ctx context.Context, question string, history types.History, activeModels []*types.ModelInfo) types.Rank {
 	// Use one model to rank, e.g., Grok
-	grok := models.ModelMap["A"]
-	options := []string{}
-	for id := range history {
-		last := history[id][len(history[id])-1]
-		options = append(options, last.Refined)
-	}
-	prompt := prompts.RankPrompt(question, utils.BuildContext(question, history), options)
+	grok := models.ModelMap["grok"]
+	prompt := prompts.RankPrompt(question, utils.BuildContext(question, history), activeModels)
 	resp, _, _, err := models.CallModel(ctx, grok, prompt, nil)
 	if err != nil {
 		return types.Rank{}
 	}
 	// Parse ranking A > B > C
 	ranking := strings.Split(resp.Refined, " > ")
+	modelLetters := map[string]string{"grok": "A", "gpt": "B", "claude": "C", "gemini": "D"}
+	letterToId := make(map[string]string)
+	for id, letter := range modelLetters {
+		letterToId[letter] = id
+	}
 	rank := make(types.Rank)
-	for i, id := range ranking {
-		rank[strings.TrimSpace(id)] = len(ranking) - i
+	for i, letter := range ranking {
+		if id, ok := letterToId[strings.TrimSpace(letter)]; ok {
+			rank[id] = len(ranking) - i
+		}
 	}
 	return rank
 }

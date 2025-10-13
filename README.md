@@ -10,21 +10,29 @@ CLI for multi-LLM agent swarm on a question: Optional round estimation, iterate 
    go mod tidy
    ```
 
-2. Build the binary:
+2. Run the application:
+   ```
+   go run cmd/fat/main.go [flags] "your question here"
+   ```
+
+   Or build the binary first:
    ```
    go build -o fat cmd/fat/main.go
+   ./fat [flags] "your question here"
    ```
 
 3. Set up API keys:
-   - Environment variables: `GROK_4_FAST`, `GPT_5_MINI`, `CLAUDE_3_5_HAIKU`, `GEMINI_2_5_FLASH`
+   - Environment variables: `GROK_KEY`, `GPT_KEY`, `CLAUDE_KEY`, `GEMINI_KEY`
    - Or create `.env` file with the same variables
-   - Or create `keys.json` with `{"grok-4-fast": "key", ...}`
+   - Or create `keys.json` with `{"grok": "key", "gpt": "key", "claude": "key", "gemini": "key"}`
 
 ## Usage
 
 ```
-./fat [flags] question text here
+go run cmd/fat/main.go [flags] question text here
 ```
+
+Or if built: `./fat [flags] question text here`
 
 ### Flags
 
@@ -32,27 +40,38 @@ CLI for multi-LLM agent swarm on a question: Optional round estimation, iterate 
 - `--full-context`: Use full history (default false)
 - `--verbose`: Verbose output (default false)
 - `--budget`: Estimate and confirm budget (default false)
-- `--model`: Include model (A/B/C/D), can specify multiple
-- `--no-model`: Exclude model (A/B/C/D), can specify multiple
+- `--grok`: Include Grok model
+- `--gpt`: Include GPT model
+- `--claude`: Include Claude model
+- `--gemini`: Include Gemini model
+- `--no-grok`: Exclude Grok model
+- `--no-gpt`: Exclude GPT model
+- `--no-claude`: Exclude Claude model
+- `--no-gemini`: Exclude Gemini model
 
 ### Examples
 
 Single model:
 ```
-./fat --model A What is the capital of France?
+go run cmd/fat/main.go --grok What is the capital of France?
 ```
 
 Multi model auto rounds:
 ```
-./fat --verbose How to bake a cake?
+go run cmd/fat/main.go --verbose --grok --gpt How to bake a cake?
+```
+
+Exclude models:
+```
+go run cmd/fat/main.go --no-claude What is AI?
 ```
 
 ## Models
 
-- A: grok-4-fast (xAI)
-- B: gpt-5-mini (OpenAI)
-- C: claude-3.5-haiku (Anthropic)
-- D: gemini-2.5-flash (Google)
+- grok: grok-4-fast (xAI)
+- gpt: gpt-5-mini (OpenAI)
+- claude: claude-3.5-haiku (Anthropic)
+- gemini: gemini-2.5-flash (Google)
 
 ## Notes
 

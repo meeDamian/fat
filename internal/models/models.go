@@ -17,10 +17,10 @@ import (
 )
 
 var ModelMap = map[string]*types.ModelInfo{
-	"A": {ID: "A", Name: "grok-4-fast", MaxTok: 131072, BaseURL: "https://api.x.ai/v1/chat/completions"},
-	"B": {ID: "B", Name: "gpt-5-mini", MaxTok: 16384, BaseURL: "https://api.openai.com/v1/chat/completions"},
-	"C": {ID: "C", Name: "claude-3.5-haiku", MaxTok: 200000, BaseURL: "https://api.anthropic.com/v1/messages"},
-	"D": {ID: "D", Name: "gemini-2.5-flash", MaxTok: 128000, BaseURL: "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent"},
+	"grok":   {ID: "grok", Name: "grok-4-fast", MaxTok: 131072, BaseURL: "https://api.x.ai/v1/chat/completions"},
+	"gpt":    {ID: "gpt", Name: "gpt-5-mini", MaxTok: 16384, BaseURL: "https://api.openai.com/v1/chat/completions"},
+	"claude": {ID: "claude", Name: "claude-3.5-haiku", MaxTok: 200000, BaseURL: "https://api.anthropic.com/v1/messages"},
+	"gemini": {ID: "gemini", Name: "gemini-2.5-flash", MaxTok: 128000, BaseURL: "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent"},
 }
 
 var DefaultRates = map[string]types.Rate{
