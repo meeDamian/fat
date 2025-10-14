@@ -13,7 +13,7 @@ func InitialPrompt(question string) string {
 	return question
 }
 
-func RefinePrompt(question, context string, mi *types.ModelInfo, round, numRounds int, activeModels []*types.ModelInfo) string {
+func RefinePrompt(question, context string, suggs []string, mi *types.ModelInfo, round, numRounds int, activeModels []*types.ModelInfo) string {
 	// Get short names of other agents for examples
 	var otherShortNames []string
 	for _, m := range activeModels {
@@ -30,15 +30,22 @@ func RefinePrompt(question, context string, mi *types.ModelInfo, round, numRound
 	if len(otherShortNames) > 1 {
 		example2 = otherShortNames[1]
 	}
+	suggStr := ""
+	if len(suggs) > 0 {
+		suggStr = "SUGGESTIONS from other models:\n"
+		for _, s := range suggs {
+			suggStr += "* " + s + "\n"
+		}
+	}
 	prompt := fmt.Sprintf(`You are agent %s in a %d-agent collaboration on the original question: "%s". This is round %d of %d. Review all prior agent outputs from round %d:
 
 %s
 
-1. Critically analyze: Identify gaps in your prior answer (e.g., missed facts, alternative POVs, biases). Challenge assumptions—debate why others might be wrong/right. Refine your answer: Improve for accuracy/depth, or repeat verbatim if no value-add.
+%s1. Critically analyze: Identify gaps in your prior answer (e.g., missed facts, alternative POVs, biases). Challenge assumptions—debate why others might be wrong/right. Refine your answer: Improve for accuracy/depth, or repeat verbatim if no value-add.
 
 2. Incorporate targeted suggestions to you (e.g., from %s: "Consider [aspect]").
 
-3. Generate 1-3 concise, actionable suggestions for other agents (only if they missed key angles; format as "To Agent [NAME]: Bullet on [specific improvement, e.g., 'Incorporate data from X to address Y bias']").
+3. Generate 1-3 concise, actionable suggestions for other agents to improve their answers (format as "To Agent [NAME]: Bullet on [specific improvement, e.g., 'Incorporate data from X to address Y bias']").
 
 Output strict format—no extra text:
 
@@ -47,22 +54,29 @@ YOUR REFINED ANSWER
 --- SUGGESTIONS ---
 
 To %s: Suggestion bullet.
-To %s: Another.`, mi.Name, len(activeModels), question, round+1, numRounds, round, context, example1, example1, example2)
+To %s: Another.`, mi.Name, len(activeModels), question, round+1, numRounds, round, context, suggStr, example1, example1, example2)
 	return prompt
 }
 
-func FinalPrompt(question, context string, mi *types.ModelInfo, round, numRounds int, activeModels []*types.ModelInfo) string {
+func FinalPrompt(question, context string, suggs []string, mi *types.ModelInfo, round, numRounds int, activeModels []*types.ModelInfo) string {
+	suggStr := ""
+	if len(suggs) > 0 {
+		suggStr = "SUGGESTIONS from other models:\n"
+		for _, s := range suggs {
+			suggStr += "* " + s + "\n\n"
+		}
+	}
 	prompt := fmt.Sprintf(`You are agent %s in a %d-agent collaboration on the original question: "%s". This is round %d of %d. Review all prior agent outputs from round %d:
 
 %s
 
-1. Critically analyze: Identify gaps in your prior answer (e.g., missed facts, alternative POVs, biases). Challenge assumptions—debate why others might be wrong/right. Refine your final answer: Improve for accuracy/depth, or repeat verbatim if no value-add.
+%s1. Critically analyze: Identify gaps in your prior answer (e.g., missed facts, alternative POVs, biases). Challenge assumptions—debate why others might be wrong/right. Refine your final answer: Improve for accuracy/depth, or repeat verbatim if no value-add.
 
 2. Incorporate targeted suggestions to you (e.g., from grok: "Consider [aspect]").
 
 Output strict format—no extra text:
 
-YOUR FINAL ANSWER`, mi.Name, len(activeModels), question, round+1, numRounds, round, context)
+YOUR FINAL ANSWER`, mi.Name, len(activeModels), question, round+1, numRounds, round, context, suggStr)
 	return prompt
 }
 

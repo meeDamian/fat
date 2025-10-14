@@ -53,10 +53,8 @@ func InitClients(rates map[string]types.Rate) {
 	}
 }
 
-// CallModel calls the model with prompt and history, returns Response, tokens
-func CallModel(ctx context.Context, mi *types.ModelInfo, prompt string, history []string) (types.Response, int64, int64, error) {
-	var resp types.Response
-	var tokIn, tokOut int64
+// CallModel calls the appropriate model function based on the model info
+func CallModel(ctx context.Context, mi *types.ModelInfo, prompt string, history []string) (types.Response, string, int64, int64, error) {
 	switch mi.Name {
 	case "grok-4-fast":
 		return callGrok(ctx, mi, prompt, history)
@@ -67,10 +65,10 @@ func CallModel(ctx context.Context, mi *types.ModelInfo, prompt string, history 
 	case "gemini-2.5-flash":
 		return callGemini(ctx, mi, prompt, history)
 	}
-	return resp, tokIn, tokOut, fmt.Errorf("unknown model")
+	return types.Response{}, "", 0, 0, fmt.Errorf("unknown model")
 }
 
-func callGrok(ctx context.Context, mi *types.ModelInfo, prompt string, history []string) (types.Response, int64, int64, error) {
+func callGrok(ctx context.Context, mi *types.ModelInfo, prompt string, history []string) (types.Response, string, int64, int64, error) {
 	var resp types.Response
 	var tokIn, tokOut int64
 	messages := []map[string]string{{"role": "user", "content": prompt}}
@@ -88,15 +86,17 @@ func callGrok(ctx context.Context, mi *types.ModelInfo, prompt string, history [
 	client := &http.Client{Timeout: 30 * time.Second}
 	res, err := client.Do(req)
 	if err != nil {
-		return types.Response{}, 0, 0, err
+		return types.Response{}, "", 0, 0, err
 	}
 	defer res.Body.Close()
 	var result map[string]any
 	json.NewDecoder(res.Body).Decode(&result)
 	if res.StatusCode != 200 {
-		return types.Response{}, 0, 0, fmt.Errorf("grok error: %v", result)
+		return types.Response{}, "", 0, 0, fmt.Errorf("grok error: %v", result)
 	}
 	content := result["choices"].([]any)[0].(map[string]any)["message"].(map[string]any)["content"].(string)
+	content = strings.TrimPrefix(content, "YOUR REFINED ANSWER\n")
+	content = strings.TrimPrefix(content, "YOUR FINAL ANSWER\n")
 	usage := result["usage"].(map[string]any)
 	tokIn = int64(usage["prompt_tokens"].(float64))
 	tokOut = int64(usage["completion_tokens"].(float64))
@@ -110,13 +110,13 @@ func callGrok(ctx context.Context, mi *types.ModelInfo, prompt string, history [
 			resp.Suggestions = parseSuggestions(suggText)
 		} else {
 			resp.Refined = content
-			resp.Suggestions = map[string]string{}
+			resp.Suggestions = map[string][]string{}
 		}
 	}
-	return resp, tokIn, tokOut, nil
+	return resp, content, tokIn, tokOut, nil
 }
 
-func callOpenAI(ctx context.Context, mi *types.ModelInfo, prompt string, history []string) (types.Response, int64, int64, error) {
+func callOpenAI(ctx context.Context, mi *types.ModelInfo, prompt string, history []string) (types.Response, string, int64, int64, error) {
 	var resp types.Response
 	var tokIn, tokOut int64
 	client := mi.Client.(openai.Client)
@@ -131,7 +131,7 @@ func callOpenAI(ctx context.Context, mi *types.ModelInfo, prompt string, history
 	}
 	result, err := client.Chat.Completions.New(ctx, params)
 	if err != nil {
-		return types.Response{}, 0, 0, err
+		return types.Response{}, "", 0, 0, err
 	}
 	content := result.Choices[0].Message.Content
 	if err := json.Unmarshal([]byte(content), &resp); err != nil {
@@ -143,18 +143,18 @@ func callOpenAI(ctx context.Context, mi *types.ModelInfo, prompt string, history
 			resp.Suggestions = parseSuggestions(suggText)
 		} else {
 			resp.Refined = content
-			resp.Suggestions = map[string]string{}
+			resp.Suggestions = map[string][]string{}
 		}
 	}
 	tokIn = result.Usage.PromptTokens
 	tokOut = result.Usage.CompletionTokens
-	return resp, tokIn, tokOut, nil
+	return resp, content, tokIn, tokOut, nil
 }
 
-func callClaude(ctx context.Context, mi *types.ModelInfo, prompt string, history []string) (types.Response, int64, int64, error) {
+func callClaude(ctx context.Context, mi *types.ModelInfo, prompt string, history []string) (types.Response, string, int64, int64, error) {
 	var resp types.Response
 	var tokIn, tokOut int64
-	client := mi.Client.(*anthropic.Client)
+	client := mi.Client.(anthropic.Client)
 	// schema := jsonschema.Reflect(&types.Response{})
 	// tool := anthropic.ToolParam{
 	// 	Name:        "response",
@@ -162,9 +162,8 @@ func callClaude(ctx context.Context, mi *types.ModelInfo, prompt string, history
 	// 	InputSchema: schema,
 	// }
 	params := anthropic.MessageNewParams{
-		Model:     anthropic.Model("claude-3.5-haiku"),
+		Model:     anthropic.Model("claude-3-5-haiku-latest"),
 		MaxTokens: 1024,
-		System:    []anthropic.TextBlockParam{{Text: "Respond with JSON: {\"refined\": \"...\", \"suggestions\": [...]}"}},
 		Messages: []anthropic.MessageParam{
 			anthropic.NewUserMessage(anthropic.NewTextBlock(prompt)),
 		},
@@ -175,10 +174,13 @@ func callClaude(ctx context.Context, mi *types.ModelInfo, prompt string, history
 	}
 	result, err := client.Messages.New(ctx, params)
 	if err != nil {
-		return types.Response{}, 0, 0, err
+		return types.Response{}, "", 0, 0, err
 	}
 	// Assume tool use
 	content := result.Content[0].Text
+	content = strings.TrimPrefix(content, "YOUR REFINED ANSWER\n")
+	content = strings.TrimPrefix(content, "YOUR FINAL ANSWER\n")
+
 	if err := json.Unmarshal([]byte(content), &resp); err != nil {
 		// Try structured text format
 		parts := strings.Split(content, "--- SUGGESTIONS ---")
@@ -188,23 +190,26 @@ func callClaude(ctx context.Context, mi *types.ModelInfo, prompt string, history
 			resp.Suggestions = parseSuggestions(suggText)
 		} else {
 			resp.Refined = content
-			resp.Suggestions = map[string]string{}
+			resp.Suggestions = map[string][]string{}
 		}
 	}
 	tokIn = result.Usage.InputTokens
 	tokOut = result.Usage.OutputTokens
-	return resp, tokIn, tokOut, nil
+	return resp, content, tokIn, tokOut, nil
 }
 
-func callGemini(ctx context.Context, mi *types.ModelInfo, prompt string, history []string) (types.Response, int64, int64, error) {
+func callGemini(ctx context.Context, mi *types.ModelInfo, prompt string, history []string) (types.Response, string, int64, int64, error) {
 	var resp types.Response
 	var tokIn, tokOut int64
 	client := mi.Client.(*genai.Client)
 	result, err := client.Models.GenerateContent(ctx, mi.Name, genai.Text(prompt), nil)
 	if err != nil {
-		return types.Response{}, 0, 0, err
+		return types.Response{}, "", 0, 0, err
 	}
 	content := result.Text()
+	content = strings.TrimPrefix(content, "YOUR REFINED ANSWER\n")
+	content = strings.TrimPrefix(content, "YOUR FINAL ANSWER\n")
+
 	if err := json.Unmarshal([]byte(content), &resp); err != nil {
 		// Try structured text format
 		parts := strings.Split(content, "--- SUGGESTIONS ---")
@@ -214,13 +219,13 @@ func callGemini(ctx context.Context, mi *types.ModelInfo, prompt string, history
 			resp.Suggestions = parseSuggestions(suggText)
 		} else {
 			resp.Refined = content
-			resp.Suggestions = map[string]string{}
+			resp.Suggestions = map[string][]string{}
 		}
 	}
 	// Note: Usage metadata not directly available in this API, set to 0 or estimate
 	tokIn = 0
 	tokOut = 0
-	return resp, tokIn, tokOut, nil
+	return resp, content, tokIn, tokOut, nil
 }
 
 // CostForToks calculates cost
@@ -229,16 +234,16 @@ func CostForToks(mi *types.ModelInfo, tokIn, tokOut int64) float64 {
 }
 
 // parseSuggestions parses suggestions from text like "To Agent X: suggestion\nTo Agent Y: ..."
-func parseSuggestions(text string) map[string]string {
-	m := make(map[string]string)
+func parseSuggestions(text string) map[string][]string {
+	m := make(map[string][]string)
 	lines := strings.Split(text, "\n")
 	for _, line := range lines {
 		line = strings.TrimSpace(line)
-		if strings.HasPrefix(line, "To Agent ") {
+		if strings.HasPrefix(line, "To ") {
 			parts := strings.SplitN(line, ": ", 2)
 			if len(parts) == 2 {
-				name := strings.TrimPrefix(parts[0], "To Agent ")
-				m[name] = parts[1]
+				name := strings.TrimPrefix(parts[0], "To ")
+				m[name] = append(m[name], parts[1])
 			}
 		}
 	}

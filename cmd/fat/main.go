@@ -113,14 +113,14 @@ func main() {
 		if *verbose {
 			fmt.Printf("Calling model %s with prompt: %s\n", mi.Name, prompt)
 		}
-		resp, tokIn, tokOut, err := models.CallModel(ctx, mi, prompt, nil)
+		resp, full, tokIn, tokOut, err := models.CallModel(ctx, mi, prompt, nil)
 		if err != nil {
 			log.Fatal(err)
 		}
 		if *verbose {
 			fmt.Printf("Response from %s: %s (tokens in: %d, out: %d)\n", mi.Name, resp.Refined, tokIn, tokOut)
 		}
-		utils.Log("single", mi.Name, prompt, resp.Refined)
+		utils.Log("single", mi.Name, prompt, full)
 		fmt.Println(resp.Refined)
 	} else {
 		// Multi mode
@@ -269,15 +269,16 @@ func parallelCall(ctx context.Context, question string, history types.History, a
 				prompt = prompts.InitialPrompt(question)
 			} else {
 				context = utils.BuildContext(question, history, mi.ID)
+				suggs := utils.GetSuggestionsForModel(history, mi.ID)
 				if round == numRounds-1 {
-					prompt = prompts.FinalPrompt(question, context, mi, round, numRounds, activeModels)
+					prompt = prompts.FinalPrompt(question, context, suggs, mi, round, numRounds, activeModels)
 				} else {
-					prompt = prompts.RefinePrompt(question, context, mi, round, numRounds, activeModels)
+					prompt = prompts.RefinePrompt(question, context, suggs, mi, round, numRounds, activeModels)
 				}
 			}
-			resp, _, _, err := models.CallModel(ctx, mi, prompt, nil) // history as messages?
+			resp, full, _, _, err := models.CallModel(ctx, mi, prompt, nil) // history as messages?
 			if err == nil {
-				utils.Log(fmt.Sprintf("R%d", round+1), mi.Name, prompt, resp.Refined)
+				utils.Log(fmt.Sprintf("R%d", round+1), mi.Name, prompt, full)
 			}
 			ch <- types.RoundRes{ID: mi.ID, Resp: resp, Err: err}
 		}(mi)
@@ -302,7 +303,7 @@ func rankModels(ctx context.Context, question string, history types.History, act
 		nameToId[mi.Name] = mi.ID
 	}
 	// Collect rankings from all models
-	firstPlaceVotes := make(map[string]int)
+	positions := make(map[string][]int)
 	var wg sync.WaitGroup
 	ch := make(chan struct {
 		id       string
@@ -314,7 +315,7 @@ func rankModels(ctx context.Context, question string, history types.History, act
 		go func(mi *types.ModelInfo) {
 			defer wg.Done()
 			prompt := prompts.RankPrompt(question, finalAnswers, activeModels, mi)
-			resp, _, _, err := models.CallModel(ctx, mi, prompt, nil)
+			resp, full, _, _, err := models.CallModel(ctx, mi, prompt, nil)
 			if err != nil {
 				ch <- struct {
 					id       string
@@ -323,7 +324,7 @@ func rankModels(ctx context.Context, question string, history types.History, act
 				}{mi.ID, nil, err}
 				return
 			}
-			utils.Log("rank", mi.Name, prompt, resp.Refined)
+			utils.Log("rank", mi.Name, prompt, full)
 			rankingStr := strings.TrimSpace(resp.Refined)
 			ranking := strings.Split(rankingStr, " > ")
 			for i, name := range ranking {
@@ -345,24 +346,42 @@ func rankModels(ctx context.Context, question string, history types.History, act
 			}
 			continue
 		}
-		if len(res.ranking) > 0 {
-			first := res.ranking[0]
-			firstPlaceVotes[first]++
+		if len(res.ranking) == len(activeModels) {
+			for i, name := range res.ranking {
+				positions[name] = append(positions[name], i+1) // 1-based position
+			}
 		}
 	}
-	// Find winner with most first-place votes
-	maxVotes := 0
-	winnerName := ""
-	for name, count := range firstPlaceVotes {
-		if count > maxVotes {
-			maxVotes = count
-			winnerName = name
+	// Calculate average positions
+	type rankInfo struct {
+		name  string
+		avg   float64
+		first int
+	}
+	var ranks []rankInfo
+	for name, pos := range positions {
+		if len(pos) == 0 {
+			continue
+		}
+		sum := 0
+		first := 0
+		for _, p := range pos {
+			sum += p
+			if p == 1 {
+				first++
+			}
+		}
+		avg := float64(sum) / float64(len(pos))
+		ranks = append(ranks, rankInfo{name: name, avg: avg, first: first})
+	}
+	// Find winner: lowest avg, then most first places
+	best := rankInfo{avg: 1000}
+	for _, r := range ranks {
+		if r.avg < best.avg || (r.avg == best.avg && r.first > best.first) {
+			best = r
 		}
 	}
-	if winnerName == "" {
-		// Fallback
-		winnerName = activeModels[0].Name
-	}
+	winnerName := best.name
 	winnerID, ok := nameToId[winnerName]
 	if !ok {
 		winnerID = activeModels[0].ID

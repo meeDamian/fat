@@ -48,8 +48,8 @@ func EstTokens(text string) int64 {
 // SummarizeChunk calls Grok to summarize a chunk of text
 func SummarizeChunk(chunk string) (string, error) {
 	// Use CallModel for grok
-	mi := models.ModelMap["A"] // Assuming "A" is grok
-	resp, _, _, err := models.CallModel(context.Background(), mi, "Summarize this text concisely: "+chunk, []string{})
+	mi := models.ModelMap["grok"] // Assuming "grok" is grok
+	resp, _, _, _, err := models.CallModel(context.Background(), mi, "Summarize this text concisely: "+chunk, []string{})
 	if err != nil {
 		return "", fmt.Errorf("summarize failed: %w", err)
 	}
@@ -62,7 +62,7 @@ func BuildContext(question string, history types.History, currentID string) stri
 	if responses, ok := history[currentID]; ok && len(responses) > 0 {
 		context += responses[len(responses)-1].Refined
 	}
-	context += "\n====\nOther models' previous answers and suggestions:\n"
+	context += "\n====\nOther models' previous answers:\n"
 	for id, responses := range history {
 		if id == currentID {
 			continue
@@ -71,14 +71,28 @@ func BuildContext(question string, history types.History, currentID string) stri
 			last := responses[len(responses)-1]
 			shortName := strings.Split(id, "-")[0]
 			context += fmt.Sprintf("%s previous answer: %s\n", shortName, last.Refined)
-			if len(last.Suggestions) > 0 {
-				suggJSON, _ := json.Marshal(last.Suggestions)
-				context += fmt.Sprintf("Suggestions: %s\n", suggJSON)
-			}
 			context += "====\n"
 		}
 	}
 	return context
+}
+
+// GetSuggestionsForModel gets suggestions targeted to the current model from other models
+func GetSuggestionsForModel(history types.History, currentID string) []string {
+	shortName := strings.Split(currentID, "-")[0]
+	var suggs []string
+	for id, responses := range history {
+		if id == currentID {
+			continue
+		}
+		if len(responses) > 0 {
+			last := responses[len(responses)-1]
+			if s, ok := last.Suggestions[shortName]; ok {
+				suggs = append(suggs, s...)
+			}
+		}
+	}
+	return suggs
 }
 
 // CapContext caps the context at 80% max tokens, summarizing if needed
