@@ -4,16 +4,21 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
+	"log/slog"
 	"net/http"
 	"os"
 	"sync"
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
 	"github.com/joho/godotenv"
+	"github.com/meedamian/fat/internal/config"
+	"github.com/meedamian/fat/internal/metrics"
 	"github.com/meedamian/fat/internal/models"
+	"github.com/meedamian/fat/internal/retry"
+	"github.com/meedamian/fat/internal/shared"
 	"github.com/meedamian/fat/internal/types"
 	"github.com/meedamian/fat/internal/utils"
 )
@@ -26,46 +31,60 @@ var (
 	}
 	clients      = make(map[*websocket.Conn]bool)
 	clientsMutex sync.Mutex
+	appLogger    *slog.Logger
+	appConfig    config.Config
 )
 
 func main() {
-	// Load keys
-	fmt.Println("Loading API keys...")
-	loadKeys()
-	fmt.Println("API keys loaded")
-
-	// Filter models - include all by default for web version
-	fmt.Println("Initializing models...")
-	activeModels := []*types.ModelInfo{}
-	for _, mi := range models.ModelMap {
-		activeModels = append(activeModels, mi)
+	cfg, err := config.Load()
+	if err != nil {
+		panic(fmt.Errorf("failed to load config: %w", err))
 	}
-	fmt.Printf("Found %d models\n", len(activeModels))
+	appConfig = cfg
 
-	// Check keys for active models
-	for _, mi := range activeModels {
+	logger, err := config.NewLogger(cfg.LogLevel)
+	if err != nil {
+		panic(fmt.Errorf("failed to create logger: %w", err))
+	}
+	appLogger = logger
+
+	appLogger.Info("loading API keys")
+	loadKeys()
+	appLogger.Info("api keys loaded")
+
+	activeModels := make([]*types.ModelInfo, 0, len(models.ModelMap))
+	for _, mi := range models.ModelMap {
+		mi.Logger = appLogger.With("model", mi.Name)
+		mi.RequestTimeout = appConfig.ModelRequestTimeout
+		activeModels = append(activeModels, mi)
 		if mi.APIKey == "" {
-			log.Printf("Warning: API key for %s missing", mi.Name)
+			mi.Logger.Warn("api key missing")
 		}
 	}
 
-	fmt.Println("Setting up Gin router...")
-	// Setup Gin router
-	r := gin.Default()
+	gin.SetMode(gin.ReleaseMode)
+	r := gin.New()
+	r.Use(gin.Recovery())
+	r.Use(gin.Logger())
 
-	// Serve static files
 	r.Static("/static", "./static")
-
-	// Routes
 	r.GET("/", func(c *gin.Context) {
 		c.File("./static/index.html")
 	})
-
 	r.GET("/ws", handleWebSocket)
+	
+	// Health check endpoint
+	r.GET("/health", func(c *gin.Context) {
+		c.JSON(200, gin.H{
+			"status": "healthy",
+			"uptime": time.Since(time.Now()).String(),
+		})
+	})
 
-	fmt.Println("Starting server on localhost:4444")
-	// Start server
-	log.Fatal(r.Run(":4444"))
+	appLogger.Info("starting server", slog.String("addr", appConfig.ServerAddress))
+	if err := r.Run(appConfig.ServerAddress); err != nil {
+		appLogger.Error("server exited with error", slog.Any("error", err))
+	}
 }
 
 func broadcastMessage(message map[string]interface{}) {
@@ -76,7 +95,7 @@ func broadcastMessage(message map[string]interface{}) {
 
 	for client := range clients {
 		if err := client.WriteMessage(websocket.TextMessage, messageBytes); err != nil {
-			log.Printf("WebSocket error: %v", err)
+			appLogger.Warn("websocket write failed", slog.Any("error", err))
 			client.Close()
 			delete(clients, client)
 		}
@@ -86,7 +105,7 @@ func broadcastMessage(message map[string]interface{}) {
 func handleWebSocket(c *gin.Context) {
 	conn, err := upgrader.Upgrade(c.Writer, c.Request, nil)
 	if err != nil {
-		log.Printf("WebSocket upgrade error: %v", err)
+		appLogger.Error("websocket upgrade failed", slog.Any("error", err))
 		return
 	}
 
@@ -112,7 +131,7 @@ func handleWebSocket(c *gin.Context) {
 	// Check keys for active models
 	for _, mi := range activeModels {
 		if mi.APIKey == "" {
-			log.Printf("Warning: API key for %s missing", mi.Name)
+			appLogger.Warn("api key missing for model", slog.String("model", mi.Name))
 		}
 	}
 
@@ -120,7 +139,7 @@ func handleWebSocket(c *gin.Context) {
 		var msg map[string]interface{}
 		err := conn.ReadJSON(&msg)
 		if err != nil {
-			log.Printf("WebSocket read error: %v", err)
+			appLogger.Debug("websocket read error", slog.Any("error", err))
 			break
 		}
 
@@ -169,9 +188,25 @@ func handleQuestionWS(conn *websocket.Conn, ctx context.Context, activeModels []
 }
 
 func processQuestion(ctx context.Context, question string, numRounds int, activeModels []*types.ModelInfo, questionTS int64) {
+	// Generate request ID
+	requestID := uuid.New().String()
+	logger := appLogger.With("request_id", requestID)
+	
+	// Initialize metrics
+	reqMetrics := metrics.NewRequestMetrics(requestID, question, numRounds, len(activeModels))
+	for _, mi := range activeModels {
+		reqMetrics.AddModelMetrics(mi.ID)
+	}
+	
+	logger.Info("starting question processing",
+		slog.String("question", question),
+		slog.Int("rounds", numRounds),
+		slog.Int("models", len(activeModels)))
+
 	// Clear previous responses and send round start
 	broadcastMessage(map[string]interface{}{
-		"type": "clear",
+		"type":       "clear",
+		"request_id": requestID,
 	})
 
 	// Initialize conversation state
@@ -179,52 +214,75 @@ func processQuestion(ctx context.Context, question string, numRounds int, active
 	discussion := make(map[string][]string) // fromAgent -> list of messages
 
 	for round := 0; round < numRounds; round++ {
+		logger.Info("starting round", slog.Int("round", round+1))
+		
 		broadcastMessage(map[string]interface{}{
-			"type":  "round_start",
-			"round": round + 1,
-			"total": numRounds,
+			"type":       "round_start",
+			"round":      round + 1,
+			"total":      numRounds,
+			"request_id": requestID,
 		})
 
-		results := parallelCall(ctx, question, replies, discussion, activeModels, round, numRounds, questionTS)
+		results := parallelCall(ctx, requestID, question, replies, discussion, activeModels, round, numRounds, questionTS, reqMetrics)
 
 		// Wait for all models to complete this round
 		for range activeModels {
 			result := <-results
 			if result.err != nil {
+				logger.Error("model error",
+					slog.String("model", result.modelID),
+					slog.Int("round", round+1),
+					slog.Any("error", result.err))
+				
 				broadcastMessage(map[string]interface{}{
-					"type":  "error",
-					"model": result.modelID,
-					"round": round + 1,
-					"error": result.err.Error(),
+					"type":       "error",
+					"model":      result.modelID,
+					"round":      round + 1,
+					"error":      result.err.Error(),
+					"request_id": requestID,
 				})
 			} else {
 				// Update conversation state
 				replies[result.modelID] = result.reply.Answer
-				for range result.reply.Discussion {
-					discussion[result.modelID] = append(discussion[result.modelID], result.reply.Discussion[result.modelID])
+				
+				// Initialize discussion entry if needed and append messages
+				if _, exists := discussion[result.modelID]; !exists {
+					discussion[result.modelID] = []string{}
+				}
+				for targetAgent, message := range result.reply.Discussion {
+					discussion[result.modelID] = append(discussion[result.modelID], fmt.Sprintf("To %s: %s", targetAgent, message))
 				}
 
 				broadcastMessage(map[string]interface{}{
-					"type":     "response",
-					"model":    result.modelID,
-					"round":    round + 1,
-					"response": result.reply.Answer,
+					"type":       "response",
+					"model":      result.modelID,
+					"round":      round + 1,
+					"response":   result.reply.Answer,
+					"request_id": requestID,
 				})
 			}
 		}
 	}
 
 	// Ranking phase
+	logger.Info("starting ranking phase")
 	broadcastMessage(map[string]interface{}{
-		"type": "ranking_start",
+		"type":       "ranking_start",
+		"request_id": requestID,
 	})
 
-	winner := rankModels(ctx, question, replies, activeModels, questionTS)
+	winner := rankModels(ctx, requestID, question, replies, activeModels, questionTS, reqMetrics)
+	
+	reqMetrics.Complete(winner)
+	
+	logger.Info("question processing complete", slog.Any("metrics", reqMetrics.Summary()))
 
 	broadcastMessage(map[string]interface{}{
-		"type":   "winner",
-		"model":  winner,
-		"answer": replies[winner],
+		"type":       "winner",
+		"model":      winner,
+		"answer":     replies[winner],
+		"request_id": requestID,
+		"metrics":    reqMetrics.Summary(),
 	})
 }
 
@@ -234,7 +292,7 @@ type callResult struct {
 	err     error
 }
 
-func parallelCall(ctx context.Context, question string, replies map[string]string, discussion map[string][]string, activeModels []*types.ModelInfo, round int, numRounds int, questionTS int64) <-chan callResult {
+func parallelCall(ctx context.Context, requestID, question string, replies map[string]string, discussion map[string][]string, activeModels []*types.ModelInfo, round int, numRounds int, questionTS int64, reqMetrics *metrics.RequestMetrics) <-chan callResult {
 	results := make(chan callResult, len(activeModels))
 
 	for _, mi := range activeModels {
@@ -245,6 +303,8 @@ func parallelCall(ctx context.Context, question string, replies map[string]strin
 				}
 			}()
 
+			startTime := time.Now()
+			
 			// Calculate other agents (all active models except this one)
 			otherAgents := make([]string, 0, len(activeModels)-1)
 			for _, m := range activeModels {
@@ -259,12 +319,52 @@ func parallelCall(ctx context.Context, question string, replies map[string]strin
 				OtherAgents: otherAgents,
 			}
 
-			model := models.NewModel(mi)
-			result, err := model.Prompt(ctx, question, meta, replies, discussion)
+			// Create timeout context for this model call
+			timeout := mi.RequestTimeout
+			if timeout == 0 {
+				timeout = 30 * time.Second
+			}
+			callCtx, cancel := context.WithTimeout(ctx, timeout)
+			defer cancel()
 
-			if err != nil {
-				results <- callResult{modelID: mi.ID, err: err}
+			model := models.NewModel(mi)
+			
+			// Retry configuration
+			retryCfg := retry.DefaultConfig()
+			var result types.ModelResult
+			var err error
+			
+			// Execute with retry
+			retryErr := retry.Do(callCtx, retryCfg, func() error {
+				result, err = model.Prompt(callCtx, question, meta, replies, discussion)
+				if err != nil && retry.IsRetryable(err) {
+					mi.Logger.Warn("retrying after error", slog.Any("error", err))
+					return err
+				}
+				return err
+			})
+
+			duration := time.Since(startTime)
+
+			if retryErr != nil {
+				mi.Logger.Error("model prompt failed after retries", 
+					slog.Int("round", round+1),
+					slog.Any("error", retryErr))
+				
+				// Record metrics
+				mm := reqMetrics.ModelMetrics[mi.ID]
+				if mm != nil {
+					mm.RecordRound(round+1, duration, 0, 0, retryErr)
+				}
+				
+				results <- callResult{modelID: mi.ID, err: fmt.Errorf("model %s: %w", mi.Name, retryErr)}
 				return
+			}
+
+			// Record metrics
+			mm := reqMetrics.ModelMetrics[mi.ID]
+			if mm != nil {
+				mm.RecordRound(round+1, duration, result.TokIn, result.TokOut, nil)
 			}
 
 			// Log the conversation
@@ -280,26 +380,105 @@ func parallelCall(ctx context.Context, question string, replies map[string]strin
 	return results
 }
 
-func rankModels(ctx context.Context, question string, replies map[string]string, activeModels []*types.ModelInfo, questionTS int64) string {
-	// Build final answers context
-	finalAnswers := "Final answers from all models:\n"
-	nameToId := make(map[string]string)
+func rankModels(ctx context.Context, requestID, question string, replies map[string]string, activeModels []*types.ModelInfo, questionTS int64, reqMetrics *metrics.RequestMetrics) string {
+	logger := appLogger.With("request_id", requestID)
+	logger.Info("starting ranking phase", slog.Int("num_models", len(activeModels)))
+	
+	// Collect rankings from all models
+	rankings := make(map[string][]string)
+	var wg sync.WaitGroup
+	var mu sync.Mutex
+
 	for _, mi := range activeModels {
-		if answer, ok := replies[mi.ID]; ok {
-			finalAnswers += fmt.Sprintf("Model %s:\n%s\n\n", mi.Name, answer)
-		}
-		nameToId[mi.Name] = mi.ID
+		wg.Add(1)
+		go func(mi *types.ModelInfo) {
+			defer wg.Done()
+
+			startTime := time.Now()
+
+			// Calculate other agents
+			otherAgents := make([]string, 0, len(activeModels)-1)
+			for _, m := range activeModels {
+				if m.ID != mi.ID {
+					otherAgents = append(otherAgents, m.Name)
+				}
+			}
+
+			// Create ranking prompt
+			prompt := shared.FormatRankingPrompt(mi.Name, question, otherAgents, replies)
+
+			// Create timeout context
+			timeout := mi.RequestTimeout
+			if timeout == 0 {
+				timeout = 30 * time.Second
+			}
+			callCtx, cancel := context.WithTimeout(ctx, timeout)
+			defer cancel()
+
+			// Call model for ranking (using Prompt method for now)
+			model := models.NewModel(mi)
+			meta := types.Meta{
+				Round:       1,
+				TotalRounds: 1,
+				OtherAgents: otherAgents,
+			}
+			
+			result, err := model.Prompt(callCtx, prompt, meta, make(map[string]string), make(map[string][]string))
+			
+			duration := time.Since(startTime)
+			
+			if err != nil {
+				mi.Logger.Error("ranking failed", slog.Any("error", err))
+				return
+			}
+
+			// Parse ranking from response
+			ranking := shared.ParseRanking(result.Reply.RawContent)
+			
+			// Log ranking
+			utils.Log(questionTS, "rank", mi.Name, prompt, result.Reply.RawContent)
+
+			// Record metrics
+			mm := reqMetrics.ModelMetrics[mi.ID]
+			if mm != nil {
+				mm.RecordRanking(duration, result.TokIn, result.TokOut)
+			}
+
+			mu.Lock()
+			rankings[mi.ID] = ranking
+			mu.Unlock()
+
+			mi.Logger.Info("ranking completed", slog.Any("ranking", ranking))
+		}(mi)
 	}
 
-	// Use a simple ranking model (could be improved)
-	// For now, just pick the first model with a response
+	wg.Wait()
+
+	// Aggregate rankings
+	allAgentNames := make([]string, 0, len(activeModels))
 	for _, mi := range activeModels {
-		if _, ok := replies[mi.ID]; ok {
+		allAgentNames = append(allAgentNames, mi.Name)
+	}
+
+	winner := shared.AggregateRankings(rankings, allAgentNames)
+	
+	// Convert winner name back to ID
+	for _, mi := range activeModels {
+		if mi.Name == winner {
+			logger.Info("ranking complete", slog.String("winner", winner))
 			return mi.ID
 		}
 	}
 
-	// Fallback to first model
+	// Fallback to first model with response
+	for _, mi := range activeModels {
+		if _, ok := replies[mi.ID]; ok {
+			logger.Warn("ranking fallback to first responder", slog.String("model", mi.ID))
+			return mi.ID
+		}
+	}
+
+	// Final fallback
 	if len(activeModels) > 0 {
 		return activeModels[0].ID
 	}

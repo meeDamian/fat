@@ -1,6 +1,10 @@
 package types
 
-import "context"
+import (
+	"context"
+	"log/slog"
+	"time"
+)
 
 // Rate holds pricing information with timestamp
 type Rate struct {
@@ -18,6 +22,8 @@ type ModelInfo struct {
 	APIKey  string
 	Rates   Rate
 	Client  any
+	Logger  *slog.Logger
+	RequestTimeout time.Duration
 }
 
 // Reply represents a model's response
