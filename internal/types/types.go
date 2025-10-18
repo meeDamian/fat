@@ -33,6 +33,7 @@ type ModelResult struct {
 	Reply  Reply
 	TokIn  int64
 	TokOut int64
+	Prompt string // For logging
 }
 
 // Model interface for all AI providers

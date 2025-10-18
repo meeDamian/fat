@@ -24,25 +24,19 @@ var (
 			return true // Allow all origins for development
 		},
 	}
-	clients = make(map[*websocket.Conn]bool)
+	clients      = make(map[*websocket.Conn]bool)
 	clientsMutex sync.Mutex
 )
 
 func main() {
-	log.Println("Starting FAT application...")
-
 	// Load keys
-	log.Println("Loading API keys...")
 	loadKeys()
-	log.Println("API keys loaded")
 
 	// Filter models - include all by default for web version
-	log.Println("Initializing models...")
 	activeModels := []*types.ModelInfo{}
 	for _, mi := range models.ModelMap {
 		activeModels = append(activeModels, mi)
 	}
-	log.Printf("Found %d models", len(activeModels))
 
 	// Check keys for active models
 	for _, mi := range activeModels {
@@ -51,7 +45,6 @@ func main() {
 		}
 	}
 
-	log.Println("Setting up Gin router...")
 	// Setup Gin router
 	r := gin.Default()
 
@@ -65,7 +58,6 @@ func main() {
 
 	r.GET("/ws", handleWebSocket)
 
-	log.Println("Starting server on localhost:4444")
 	// Start server
 	log.Fatal(r.Run(":4444"))
 }
@@ -159,8 +151,8 @@ func handleQuestionWS(conn *websocket.Conn, ctx context.Context, activeModels []
 	// Send loading messages
 	for _, mi := range activeModels {
 		broadcastMessage(map[string]interface{}{
-			"type":   "loading",
-			"model":  mi.ID,
+			"type":  "loading",
+			"model": mi.ID,
 		})
 	}
 
@@ -177,14 +169,14 @@ func processQuestion(ctx context.Context, question string, numRounds int, active
 	})
 
 	// Initialize conversation state
-	replies := make(map[string]string)     // agent -> latest reply
+	replies := make(map[string]string)      // agent -> latest reply
 	discussion := make(map[string][]string) // fromAgent -> list of messages
 
 	for round := 0; round < numRounds; round++ {
 		broadcastMessage(map[string]interface{}{
-			"type":   "round_start",
-			"round":  round + 1,
-			"total":  numRounds,
+			"type":  "round_start",
+			"round": round + 1,
+			"total": numRounds,
 		})
 
 		results := parallelCall(ctx, question, replies, discussion, activeModels, round, numRounds, questionTS)
@@ -256,7 +248,7 @@ func parallelCall(ctx context.Context, question string, replies map[string]strin
 			}
 
 			// Log the conversation
-			utils.Log(questionTS, fmt.Sprintf("R%d", round+1), mi.Name, "prompt", result.Reply.RawContent)
+			utils.Log(questionTS, fmt.Sprintf("R%d", round+1), mi.Name, result.Prompt, result.Reply.RawContent)
 
 			results <- callResult{
 				modelID: mi.ID,
