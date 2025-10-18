@@ -15,6 +15,7 @@ import (
 	"github.com/gorilla/websocket"
 	"github.com/joho/godotenv"
 	"github.com/meedamian/fat/internal/config"
+	"github.com/meedamian/fat/internal/db"
 	"github.com/meedamian/fat/internal/metrics"
 	"github.com/meedamian/fat/internal/models"
 	"github.com/meedamian/fat/internal/retry"
@@ -33,6 +34,7 @@ var (
 	clientsMutex sync.Mutex
 	appLogger    *slog.Logger
 	appConfig    config.Config
+	appDB        *db.DB
 )
 
 func main() {
@@ -51,6 +53,17 @@ func main() {
 	appLogger.Info("loading API keys")
 	loadKeys()
 	appLogger.Info("api keys loaded")
+
+	// Initialize database
+	appLogger.Info("initializing database")
+	database, err := db.New("fat.db", appLogger)
+	if err != nil {
+		appLogger.Error("failed to initialize database", slog.Any("error", err))
+		panic(fmt.Errorf("failed to initialize database: %w", err))
+	}
+	appDB = database
+	defer appDB.Close()
+	appLogger.Info("database initialized")
 
 	activeModels := make([]*types.ModelInfo, 0, len(models.ModelMap))
 	for _, mi := range models.ModelMap {
@@ -78,6 +91,30 @@ func main() {
 		c.JSON(200, gin.H{
 			"status": "healthy",
 			"uptime": time.Since(time.Now()).String(),
+		})
+	})
+	
+	// Stats endpoint
+	r.GET("/stats", func(c *gin.Context) {
+		ctx := c.Request.Context()
+		
+		// Get all model stats
+		modelStats, err := appDB.GetAllModelStats(ctx)
+		if err != nil {
+			c.JSON(500, gin.H{"error": err.Error()})
+			return
+		}
+		
+		// Get recent requests
+		recentRequests, err := appDB.GetRecentRequests(ctx, 10)
+		if err != nil {
+			c.JSON(500, gin.H{"error": err.Error()})
+			return
+		}
+		
+		c.JSON(200, gin.H{
+			"model_stats":     modelStats,
+			"recent_requests": recentRequests,
 		})
 	})
 
@@ -277,6 +314,11 @@ func processQuestion(ctx context.Context, question string, numRounds int, active
 	
 	logger.Info("question processing complete", slog.Any("metrics", reqMetrics.Summary()))
 
+	// Save to database
+	if err := saveToDatabase(ctx, reqMetrics, question, winner); err != nil {
+		logger.Error("failed to save to database", slog.Any("error", err))
+	}
+
 	broadcastMessage(map[string]interface{}{
 		"type":       "winner",
 		"model":      winner,
@@ -368,7 +410,9 @@ func parallelCall(ctx context.Context, requestID, question string, replies map[s
 			}
 
 			// Log the conversation
-			utils.Log(questionTS, fmt.Sprintf("R%d", round+1), mi.Name, result.Prompt, result.Reply.RawContent)
+			if err := utils.Log(questionTS, fmt.Sprintf("R%d", round+1), mi.Name, result.Prompt, result.Reply.RawContent); err != nil {
+				mi.Logger.Warn("failed to log conversation", slog.Any("error", err))
+			}
 
 			results <- callResult{
 				modelID: mi.ID,
@@ -436,7 +480,9 @@ func rankModels(ctx context.Context, requestID, question string, replies map[str
 			ranking := shared.ParseRanking(result.Reply.RawContent)
 			
 			// Log ranking
-			utils.Log(questionTS, "rank", mi.Name, prompt, result.Reply.RawContent)
+			if err := utils.Log(questionTS, "rank", mi.Name, prompt, result.Reply.RawContent); err != nil {
+				mi.Logger.Warn("failed to log ranking", slog.Any("error", err))
+			}
 
 			// Record metrics
 			mm := reqMetrics.ModelMetrics[mi.ID]
@@ -483,6 +529,108 @@ func rankModels(ctx context.Context, requestID, question string, replies map[str
 		return activeModels[0].ID
 	}
 	return ""
+}
+
+// saveToDatabase persists request metrics to SQLite
+func saveToDatabase(ctx context.Context, reqMetrics *metrics.RequestMetrics, question, winner string) error {
+	summary := reqMetrics.Summary()
+	
+	// Calculate total cost based on model rates
+	totalCost := 0.0
+	for modelID, mm := range reqMetrics.ModelMetrics {
+		// Get model info for rates
+		var modelInfo *types.ModelInfo
+		for _, mi := range models.ModelMap {
+			if mi.ID == modelID {
+				modelInfo = mi
+				break
+			}
+		}
+		
+		if modelInfo != nil {
+			// Calculate cost: (tokens_in * rate_in + tokens_out * rate_out) / 1M
+			cost := (float64(mm.TotalTokens.Input)*modelInfo.Rates.In + float64(mm.TotalTokens.Output)*modelInfo.Rates.Out) / 1_000_000
+			totalCost += cost
+		}
+	}
+	
+	// Save main request record
+	req := db.Request{
+		ID:              reqMetrics.RequestID,
+		Question:        question,
+		NumRounds:       reqMetrics.NumRounds,
+		NumModels:       reqMetrics.NumModels,
+		WinnerModel:     winner,
+		TotalDurationMs: reqMetrics.Duration().Milliseconds(),
+		TotalTokensIn:   summary["total_tokens_in"].(int64),
+		TotalTokensOut:  summary["total_tokens_out"].(int64),
+		TotalCost:       totalCost,
+		ErrorCount:      summary["error_count"].(int),
+	}
+	
+	if err := appDB.SaveRequest(ctx, req); err != nil {
+		return fmt.Errorf("failed to save request: %w", err)
+	}
+	
+	// Save individual model rounds
+	for modelID, mm := range reqMetrics.ModelMetrics {
+		var modelInfo *types.ModelInfo
+		for _, mi := range models.ModelMap {
+			if mi.ID == modelID {
+				modelInfo = mi
+				break
+			}
+		}
+		
+		if modelInfo == nil {
+			continue
+		}
+		
+		for _, roundMetric := range mm.RoundMetrics {
+			cost := (float64(roundMetric.Tokens.Input)*modelInfo.Rates.In + float64(roundMetric.Tokens.Output)*modelInfo.Rates.Out) / 1_000_000
+			
+			mr := db.ModelRound{
+				RequestID:  reqMetrics.RequestID,
+				ModelID:    modelID,
+				ModelName:  modelInfo.Name,
+				Round:      roundMetric.Round,
+				DurationMs: roundMetric.Duration.Milliseconds(),
+				TokensIn:   roundMetric.Tokens.Input,
+				TokensOut:  roundMetric.Tokens.Output,
+				Cost:       cost,
+				Error:      roundMetric.Error,
+			}
+			
+			if err := appDB.SaveModelRound(ctx, mr); err != nil {
+				appLogger.Warn("failed to save model round", 
+					slog.String("model", modelID),
+					slog.Int("round", roundMetric.Round),
+					slog.Any("error", err))
+			}
+		}
+		
+		// Update model stats
+		won := (modelID == winner)
+		avgResponseTime := int64(0)
+		if len(mm.RoundMetrics) > 0 {
+			totalTime := int64(0)
+			for _, rm := range mm.RoundMetrics {
+				totalTime += rm.Duration.Milliseconds()
+			}
+			avgResponseTime = totalTime / int64(len(mm.RoundMetrics))
+		}
+		
+		modelCost := (float64(mm.TotalTokens.Input)*modelInfo.Rates.In + float64(mm.TotalTokens.Output)*modelInfo.Rates.Out) / 1_000_000
+		
+		if err := appDB.UpdateModelStats(ctx, modelID, modelInfo.Name, won, 
+			mm.TotalTokens.Input, mm.TotalTokens.Output, modelCost, avgResponseTime); err != nil {
+			appLogger.Warn("failed to update model stats",
+				slog.String("model", modelID),
+				slog.Any("error", err))
+		}
+	}
+	
+	return nil
 }
 
 func loadKeys() {

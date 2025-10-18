@@ -27,19 +27,19 @@ func TestFormatPrompt(t *testing.T) {
 	prompt := FormatPrompt("Grok", "What is AI?", meta, replies, discussion)
 
 	// Verify key sections are present
-	if !strings.Contains(prompt, "You are agent Grok in a 3-agent collaboration") {
+	if !strings.Contains(prompt, "You are Grok in a 3-agent collaboration") {
 		t.Error("Missing agent introduction")
 	}
 
-	if !strings.Contains(prompt, "This is round 2 of 3") {
+	if !strings.Contains(prompt, "Round 2 of 3") {
 		t.Error("Missing round information")
 	}
 
-	if !strings.Contains(prompt, "# QUESTION") {
+	if !strings.Contains(prompt, "--- QUESTION ---") {
 		t.Error("Missing question section")
 	}
 
-	if !strings.Contains(prompt, "# REPLIES from a previous round:") {
+	if !strings.Contains(prompt, "# REPLIES from previous round:") {
 		t.Error("Missing replies section")
 	}
 
@@ -49,6 +49,10 @@ func TestFormatPrompt(t *testing.T) {
 
 	if !strings.Contains(prompt, "--- RESPONSE FORMAT ---") {
 		t.Error("Missing response format section")
+	}
+	
+	if !strings.Contains(prompt, "--- YOUR TASK ---") {
+		t.Error("Missing task section")
 	}
 }
 
@@ -100,11 +104,19 @@ func TestFormatPromptRound1(t *testing.T) {
 
 	prompt := FormatPrompt("Grok", "Test question", meta, map[string]string{}, map[string][]string{})
 
-	if !strings.Contains(prompt, "(None - this is the first round)") {
+	if !strings.Contains(prompt, "(None - this is round 1)") {
 		t.Error("Round 1 should indicate no previous replies")
 	}
 
 	if !strings.Contains(prompt, "(No discussion yet)") {
 		t.Error("Round 1 should indicate no discussion yet")
+	}
+	
+	if !strings.Contains(prompt, "This is round 1 - provide your initial analysis") {
+		t.Error("Round 1 should have specific instructions")
+	}
+	
+	if !strings.Contains(prompt, "No DISCUSSION section needed in round 1") {
+		t.Error("Round 1 should mention no discussion needed")
 	}
 }

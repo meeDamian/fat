@@ -61,11 +61,15 @@ func TestFormatRankingPrompt(t *testing.T) {
 
 	// Verify key sections
 	tests := []string{
-		"You are agent Grok",
+		"You are Grok",
 		"# QUESTION",
 		"# FINAL ANSWERS FROM ALL AGENTS",
-		"# RANKING INSTRUCTIONS",
+		"# RANKING CRITERIA",
+		"# OUTPUT FORMAT",
 		"# RANKING",
+		"Factual Accuracy",
+		"Completeness",
+		"Clarity and Coherence",
 	}
 
 	for _, test := range tests {

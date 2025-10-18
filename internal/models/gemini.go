@@ -2,6 +2,7 @@ package models
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/meedamian/fat/internal/shared"
 	"github.com/meedamian/fat/internal/types"
@@ -16,7 +17,13 @@ type GeminiModel struct {
 
 // NewGeminiModel creates a new Gemini model instance
 func NewGeminiModel(info *types.ModelInfo) *GeminiModel {
-	client, _ := genai.NewClient(context.Background(), &genai.ClientConfig{APIKey: info.APIKey})
+	client, err := genai.NewClient(context.Background(), &genai.ClientConfig{APIKey: info.APIKey})
+	if err != nil {
+		// Log error but return model anyway - error will surface on first Prompt call
+		if info.Logger != nil {
+			info.Logger.Error("failed to create gemini client", "error", err)
+		}
+	}
 	return &GeminiModel{
 		info:   info,
 		client: client,
@@ -25,11 +32,15 @@ func NewGeminiModel(info *types.ModelInfo) *GeminiModel {
 
 // Prompt implements the Model interface
 func (m *GeminiModel) Prompt(ctx context.Context, question string, meta types.Meta, replies map[string]string, discussion map[string][]string) (types.ModelResult, error) {
-	prompt := shared.FormatPrompt("Gemini", question, meta, replies, discussion)
+	if m.client == nil {
+		return types.ModelResult{}, fmt.Errorf("gemini client not initialized")
+	}
+
+	prompt := shared.FormatPrompt(m.info.Name, question, meta, replies, discussion)
 
 	result, err := m.client.Models.GenerateContent(ctx, m.info.Name, genai.Text(prompt), nil)
 	if err != nil {
-		return types.ModelResult{}, err
+		return types.ModelResult{}, fmt.Errorf("gemini api call failed: %w", err)
 	}
 
 	content := result.Text()

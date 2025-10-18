@@ -2,6 +2,7 @@ package models
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/meedamian/fat/internal/shared"
 	"github.com/meedamian/fat/internal/types"
@@ -26,10 +27,10 @@ func NewOpenAIModel(info *types.ModelInfo) *OpenAIModel {
 
 // Prompt implements the Model interface
 func (m *OpenAIModel) Prompt(ctx context.Context, question string, meta types.Meta, replies map[string]string, discussion map[string][]string) (types.ModelResult, error) {
-	prompt := shared.FormatPrompt("GPT", question, meta, replies, discussion)
+	prompt := shared.FormatPrompt(m.info.Name, question, meta, replies, discussion)
 
 	params := openai.ChatCompletionNewParams{
-		Model: openai.ChatModel("gpt-5-mini"),
+		Model: openai.ChatModel(m.info.Name),
 		Messages: []openai.ChatCompletionMessageParamUnion{
 			openai.UserMessage(prompt),
 		},
@@ -37,7 +38,7 @@ func (m *OpenAIModel) Prompt(ctx context.Context, question string, meta types.Me
 
 	result, err := m.client.Chat.Completions.New(ctx, params)
 	if err != nil {
-		return types.ModelResult{}, err
+		return types.ModelResult{}, fmt.Errorf("openai api call failed: %w", err)
 	}
 
 	content := result.Choices[0].Message.Content

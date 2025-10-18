@@ -2,6 +2,7 @@ package models
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/anthropics/anthropic-sdk-go"
 	an "github.com/anthropics/anthropic-sdk-go/option"
@@ -26,10 +27,10 @@ func NewClaudeModel(info *types.ModelInfo) *ClaudeModel {
 
 // Prompt implements the Model interface
 func (m *ClaudeModel) Prompt(ctx context.Context, question string, meta types.Meta, replies map[string]string, discussion map[string][]string) (types.ModelResult, error) {
-	prompt := shared.FormatPrompt("Claude", question, meta, replies, discussion)
+	prompt := shared.FormatPrompt(m.info.Name, question, meta, replies, discussion)
 
 	params := anthropic.MessageNewParams{
-		Model:     anthropic.Model("claude-3-5-haiku-latest"),
+		Model:     anthropic.Model(m.info.Name),
 		MaxTokens: 1024,
 		Messages: []anthropic.MessageParam{
 			anthropic.NewUserMessage(anthropic.NewTextBlock(prompt)),
@@ -38,7 +39,7 @@ func (m *ClaudeModel) Prompt(ctx context.Context, question string, meta types.Me
 
 	result, err := m.client.Messages.New(ctx, params)
 	if err != nil {
-		return types.ModelResult{}, err
+		return types.ModelResult{}, fmt.Errorf("claude api call failed: %w", err)
 	}
 
 	content := result.Content[0].Text

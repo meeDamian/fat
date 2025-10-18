@@ -22,9 +22,22 @@ func NewGrokModel(info *types.ModelInfo) *GrokModel {
 	return &GrokModel{info: info}
 }
 
+// grokResponse represents the API response structure
+type grokResponse struct {
+	Choices []struct {
+		Message struct {
+			Content string `json:"content"`
+		} `json:"message"`
+	} `json:"choices"`
+	Usage struct {
+		PromptTokens     int64 `json:"prompt_tokens"`
+		CompletionTokens int64 `json:"completion_tokens"`
+	} `json:"usage"`
+}
+
 // Prompt implements the Model interface
 func (m *GrokModel) Prompt(ctx context.Context, question string, meta types.Meta, replies map[string]string, discussion map[string][]string) (types.ModelResult, error) {
-	prompt := shared.FormatPrompt("Grok", question, meta, replies, discussion)
+	prompt := shared.FormatPrompt(m.info.Name, question, meta, replies, discussion)
 
 	// Build messages array
 	messages := []map[string]string{{"role": "user", "content": prompt}}
@@ -34,11 +47,14 @@ func (m *GrokModel) Prompt(ctx context.Context, question string, meta types.Meta
 		"model":    m.info.Name,
 		"messages": messages,
 	}
-	jsonBody, _ := json.Marshal(body)
+	jsonBody, err := json.Marshal(body)
+	if err != nil {
+		return types.ModelResult{}, fmt.Errorf("failed to marshal request: %w", err)
+	}
 
 	req, err := http.NewRequestWithContext(ctx, "POST", m.info.BaseURL, bytes.NewBuffer(jsonBody))
 	if err != nil {
-		return types.ModelResult{}, err
+		return types.ModelResult{}, fmt.Errorf("failed to create request: %w", err)
 	}
 	req.Header.Set("Authorization", "Bearer "+m.info.APIKey)
 	req.Header.Set("Content-Type", "application/json")
@@ -46,30 +62,30 @@ func (m *GrokModel) Prompt(ctx context.Context, question string, meta types.Meta
 	client := &http.Client{Timeout: 30 * time.Second}
 	res, err := client.Do(req)
 	if err != nil {
-		return types.ModelResult{}, err
+		return types.ModelResult{}, fmt.Errorf("api request failed: %w", err)
 	}
 	defer res.Body.Close()
 
-	var result map[string]any
+	var result grokResponse
 	if err := json.NewDecoder(res.Body).Decode(&result); err != nil {
-		return types.ModelResult{}, err
+		return types.ModelResult{}, fmt.Errorf("failed to decode response: %w", err)
 	}
 
-	if res.StatusCode != 200 {
-		return types.ModelResult{}, fmt.Errorf("grok API error: %v", result)
+	if res.StatusCode != http.StatusOK {
+		return types.ModelResult{}, fmt.Errorf("api returned status %d", res.StatusCode)
 	}
 
-	content := result["choices"].([]any)[0].(map[string]any)["message"].(map[string]any)["content"].(string)
-	usage := result["usage"].(map[string]any)
-	tokIn := int64(usage["prompt_tokens"].(float64))
-	tokOut := int64(usage["completion_tokens"].(float64))
+	if len(result.Choices) == 0 {
+		return types.ModelResult{}, fmt.Errorf("no choices in response")
+	}
 
+	content := result.Choices[0].Message.Content
 	reply := shared.ParseResponse(content)
 
 	return types.ModelResult{
 		Reply:  reply,
-		TokIn:  tokIn,
-		TokOut: tokOut,
+		TokIn:  result.Usage.PromptTokens,
+		TokOut: result.Usage.CompletionTokens,
 		Prompt: prompt,
 	}, nil
 }
