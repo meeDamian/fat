@@ -11,53 +11,52 @@ import (
 )
 
 // FormatPrompt creates a standardized prompt for all models
-func FormatPrompt(modelName, question string, replies map[string]string, discussion map[string][]string) string {
+func FormatPrompt(modelName, question string, meta types.Meta, replies map[string]string, discussion map[string][]string) string {
 	var b strings.Builder
 
-	b.WriteString(fmt.Sprintf("You are %s, an AI assistant in a multi-agent collaboration.\n\n", modelName))
+	// Agent list
+	otherAgentsStr := "none"
+	if len(meta.OtherAgents) > 0 {
+		otherAgentsStr = strings.Join(meta.OtherAgents, ", ")
+	}
+
+	agentCount := len(meta.OtherAgents) + 1
+	b.WriteString(fmt.Sprintf("You are agent %s in a %d-agent collaboration on the original question below. Other agents present are: %s. This is round %d of %d.\n\n", modelName, agentCount, otherAgentsStr, meta.Round, meta.TotalRounds))
+	b.WriteString("--- PROMPT ---\n\n")
 	b.WriteString("# QUESTION\n\n")
 	b.WriteString(question)
 	b.WriteString("\n\n")
 
 	if len(replies) > 0 {
-		b.WriteString("# REPLIES FROM OTHER AGENTS\n\n")
+		b.WriteString("# REPLIES from a previous round:\n\n")
 		for agent, reply := range replies {
-			b.WriteString(fmt.Sprintf("## %s\n\n%s\n\n", agent, reply))
+			b.WriteString(fmt.Sprintf("## Agent %s\n%s\n\n", agent, reply))
 		}
 	}
 
 	if len(discussion) > 0 {
-		b.WriteString("# DISCUSSION HISTORY\n\n")
+		b.WriteString("# DISCUSSION\n\n")
 		for fromAgent, messages := range discussion {
+			b.WriteString(fmt.Sprintf("## With %s\n", fromAgent))
 			for _, msg := range messages {
-				b.WriteString(fmt.Sprintf("**%s:** %s\n\n", fromAgent, msg))
+				b.WriteString(fmt.Sprintf("%s\n", msg))
 			}
+			b.WriteString("\n")
 		}
 	}
 
-	b.WriteString(`# RESPONSE FORMAT
-
-Provide your response in this exact format:
-
-# ANSWER
-
-[Your complete answer here]
-
-# RATIONALE
-
-[Your reasoning here]
-
-# DISCUSSION
-
-## With [AgentName]
-
-[Your message to that specific agent]
-
-## With [AnotherAgentName]
-
-[Your message to another agent]
-
-Only include discussion sections for agents you want to address. Be concise but thorough.`)
+	b.WriteString("--- RESPONSE FORMAT ---\n\n")
+	b.WriteString("No deviations—strict sections only. Refine # ANSWER using # REPLIES + # DISCUSSION (address gaps/POVs). Always contribute to # DISCUSSION if round >1 and gaps found (1-2 concise messages per relevant agent).\n\n")
+	b.WriteString("# ANSWER\n\n")
+	b.WriteString("Your refined raw answer (no scaffolding; incorporate priors/discussion; <300 words).\n\n")
+	b.WriteString("# RATIONALE\n\n")
+	b.WriteString("(Optional) Brief reasoning for changes (e.g., \"Added POV from Grok to fix bias\").\n\n")
+	b.WriteString("# DISCUSSION\n\n")
+	b.WriteString("## With [AGENT_NAME]\n\n")
+	b.WriteString("[Your 1-2 new messages only, e.g., \"Consider environmental counterpoint to your tech focus.\"]\n\n")
+	b.WriteString("## With [AGENT_NAME]\n\n")
+	b.WriteString("[Same for others if relevant; skip if none]\n\n")
+	b.WriteString("Ex for round 2: If replies missed \"ethics,\" # ANSWER weaves it in; # DISCUSSION: \"To Claude: Balance with real-world precedents.\"")
 
 	return b.String()
 }

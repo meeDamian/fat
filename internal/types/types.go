@@ -36,7 +36,14 @@ type ModelResult struct {
 	Prompt string // For logging
 }
 
+// Meta contains metadata for prompt generation
+type Meta struct {
+	Round       int
+	TotalRounds int
+	OtherAgents []string // Agent count = len(OtherAgents) + 1
+}
+
 // Model interface for all AI providers
 type Model interface {
-	Prompt(ctx context.Context, question string, replies map[string]string, discussion map[string][]string) (ModelResult, error)
+	Prompt(ctx context.Context, question string, meta Meta, replies map[string]string, discussion map[string][]string) (ModelResult, error)
 }

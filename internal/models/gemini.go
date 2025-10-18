@@ -24,8 +24,8 @@ func NewGeminiModel(info *types.ModelInfo) *GeminiModel {
 }
 
 // Prompt implements the Model interface
-func (m *GeminiModel) Prompt(ctx context.Context, question string, replies map[string]string, discussion map[string][]string) (types.ModelResult, error) {
-	prompt := shared.FormatPrompt("Gemini", question, replies, discussion)
+func (m *GeminiModel) Prompt(ctx context.Context, question string, meta types.Meta, replies map[string]string, discussion map[string][]string) (types.ModelResult, error) {
+	prompt := shared.FormatPrompt("Gemini", question, meta, replies, discussion)
 
 	result, err := m.client.Models.GenerateContent(ctx, m.info.Name, genai.Text(prompt), nil)
 	if err != nil {

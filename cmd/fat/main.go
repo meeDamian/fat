@@ -30,13 +30,17 @@ var (
 
 func main() {
 	// Load keys
+	fmt.Println("Loading API keys...")
 	loadKeys()
+	fmt.Println("API keys loaded")
 
 	// Filter models - include all by default for web version
+	fmt.Println("Initializing models...")
 	activeModels := []*types.ModelInfo{}
 	for _, mi := range models.ModelMap {
 		activeModels = append(activeModels, mi)
 	}
+	fmt.Printf("Found %d models\n", len(activeModels))
 
 	// Check keys for active models
 	for _, mi := range activeModels {
@@ -45,6 +49,7 @@ func main() {
 		}
 	}
 
+	fmt.Println("Setting up Gin router...")
 	// Setup Gin router
 	r := gin.Default()
 
@@ -58,6 +63,7 @@ func main() {
 
 	r.GET("/ws", handleWebSocket)
 
+	fmt.Println("Starting server on localhost:4444")
 	// Start server
 	log.Fatal(r.Run(":4444"))
 }
@@ -239,8 +245,22 @@ func parallelCall(ctx context.Context, question string, replies map[string]strin
 				}
 			}()
 
+			// Calculate other agents (all active models except this one)
+			otherAgents := make([]string, 0, len(activeModels)-1)
+			for _, m := range activeModels {
+				if m.ID != mi.ID {
+					otherAgents = append(otherAgents, m.Name)
+				}
+			}
+
+			meta := types.Meta{
+				Round:       round + 1,
+				TotalRounds: numRounds,
+				OtherAgents: otherAgents,
+			}
+
 			model := models.NewModel(mi)
-			result, err := model.Prompt(ctx, question, replies, discussion)
+			result, err := model.Prompt(ctx, question, meta, replies, discussion)
 
 			if err != nil {
 				results <- callResult{modelID: mi.ID, err: err}

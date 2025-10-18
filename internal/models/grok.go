@@ -23,8 +23,8 @@ func NewGrokModel(info *types.ModelInfo) *GrokModel {
 }
 
 // Prompt implements the Model interface
-func (m *GrokModel) Prompt(ctx context.Context, question string, replies map[string]string, discussion map[string][]string) (types.ModelResult, error) {
-	prompt := shared.FormatPrompt("Grok", question, replies, discussion)
+func (m *GrokModel) Prompt(ctx context.Context, question string, meta types.Meta, replies map[string]string, discussion map[string][]string) (types.ModelResult, error) {
+	prompt := shared.FormatPrompt("Grok", question, meta, replies, discussion)
 
 	// Build messages array
 	messages := []map[string]string{{"role": "user", "content": prompt}}
