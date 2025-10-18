@@ -38,15 +38,13 @@ function initWebSocket() {
             const output = outputs[data.model];
             if (output) {
                 output.className = 'output';
-                const roundIndicator = data.round ? ` [Round ${data.round}]` : '';
-                output.textContent = `${data.response}${roundIndicator}`;
+                output.textContent = data.response;
             }
         } else if (data.type === 'error') {
             const output = outputs[data.model];
             if (output) {
                 output.className = 'output error';
-                const roundIndicator = data.round ? ` [Round ${data.round}]` : '';
-                output.textContent = `Error${roundIndicator}: ${data.error}`;
+                output.textContent = `Error: ${data.error}`;
             }
         } else if (data.type === 'loading') {
             const output = outputs[data.model];
@@ -96,29 +94,18 @@ submitBtn.addEventListener('click', async function() {
     submitBtn.textContent = 'Starting...';
 
     try {
-        const response = await fetch('/question', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({ 
-                question: question,
-                rounds: parseInt(roundsSelect.value)
-            })
-        });
-
-        if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
-        }
-
-        const result = await response.json();
-        console.log('Question submitted:', result);
+        // Send question via WebSocket
+        ws.send(JSON.stringify({
+            type: "question",
+            question: question,
+            rounds: parseInt(roundsSelect.value)
+        }));
 
     } catch (error) {
-        console.error('Error submitting question:', error);
+        console.error('Error sending question:', error);
         Object.values(outputs).forEach(output => {
             output.className = 'output error';
-            output.textContent = 'Failed to submit question';
+            output.textContent = 'Failed to send question';
         });
         submitBtn.disabled = false;
         submitBtn.textContent = 'Ask Models';

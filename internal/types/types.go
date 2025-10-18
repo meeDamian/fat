@@ -1,13 +1,6 @@
 package types
 
-// Response represents a model's refined answer and suggestions
-type Response struct {
-	Refined     string              `json:"refined"`
-	Suggestions map[string][]string `json:"suggestions"`
-}
-
-// History maps model IDs to their response history
-type History map[string][]Response
+import "context"
 
 // Rate holds pricing information with timestamp
 type Rate struct {
@@ -15,9 +8,6 @@ type Rate struct {
 	In  float64 `json:"in"`  // input cost per token
 	Out float64 `json:"out"` // output cost per token
 }
-
-// Rank maps model IDs to their ranking scores
-type Rank map[string]int
 
 // ModelInfo contains model configuration
 type ModelInfo struct {
@@ -30,9 +20,22 @@ type ModelInfo struct {
 	Client  any
 }
 
-// RoundRes holds the result of a round call
-type RoundRes struct {
-	ID   string
-	Resp Response
-	Err  error
+// Reply represents a model's response
+type Reply struct {
+	Answer     string
+	Rationale  string
+	Discussion map[string]string // Agent -> Message to be added to discussion
+	RawContent string            // For logging/debugging
+}
+
+// ModelResult holds the result of a model prompt
+type ModelResult struct {
+	Reply  Reply
+	TokIn  int64
+	TokOut int64
+}
+
+// Model interface for all AI providers
+type Model interface {
+	Prompt(ctx context.Context, question string, replies map[string]string, discussion map[string][]string) (ModelResult, error)
 }
