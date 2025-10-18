@@ -7,6 +7,71 @@ import (
 	"github.com/meedamian/fat/internal/types"
 )
 
+/*
+You are agent [NAME] in a [AGENT_COUNT]-agent collaboration on the original question below. Other agents present are: [LIST_OF_OTHER_AGENTS]. This is round [ROUND] of [TOTAL_ROUNDS].
+
+--- PROMPT ---
+
+# QUESTION
+
+[QUESTION]
+
+
+# REPLIES from a previous round:
+
+## [AGENT_NAME]
+
+[ANSWER]
+
+## [AGENT_NAME]
+
+[ANSWER]
+
+...
+
+# DISCUSSION
+
+## With [AGENT_NAME]
+
+[DISCUSSION (newest bottom)]
+
+## With [AGENT_NAME]
+
+[DISCUSSION]
+
+...
+
+--- RESPONSE FORMAT ---
+
+```
+# ANSWER
+
+Must be your raw answer with no scaffolding, extra disclaimers or explanations
+
+# RATIONALE
+
+If aplicable, here goes your reasoning for the answer
+
+# DISCUSSION
+
+## With [AGENT_NAME]
+
+[DISCUSSION (only add your new messages)]
+
+## With [AGENT_NAME]
+
+[DISCUSSION (only add your new messages)]
+
+...
+```
+
+ANSWER must be present in every reply.
+RATIONALE is optional, and you might use it when you deem it necesary or useful. It might be provided in response of every round.
+
+Contributing to DISCUSSION is optional.  You might send message if you deem it useful, or have a helpful suggestion to another agent. You may not use DISCUSSION in the first round.
+
+*/
+
 const ProcessDesc = "You are an AI assistant tasked with answering a question through iterative refinement. For each round, provide a refined answer and suggestions for further improvement."
 
 func InitialPrompt(question string) string {

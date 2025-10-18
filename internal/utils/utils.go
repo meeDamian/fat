@@ -23,12 +23,10 @@ var startTS int64
 func SetStartTS(ts int64) {
 	startTS = ts
 }
-
-// Log appends a log entry to the model's log file
-func Log(logType, modelName, prompt, response string) {
-	diff := time.Now().Unix() - startTS
+func Log(questionTS int64, logType, modelName, prompt, response string) {
+	diff := time.Now().Unix() - questionTS
 	diffStr := fmt.Sprintf("%04d", diff)
-	filename := fmt.Sprintf("answers/%d_%s_%s_%s.log", startTS, diffStr, logType, modelName)
+	filename := fmt.Sprintf("answers/%d_%s_%s_%s.log", questionTS, diffStr, logType, modelName)
 	os.MkdirAll("answers", 0755)
 	file, err := os.OpenFile(filename, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {

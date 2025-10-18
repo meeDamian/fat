@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FAT AI Model Comparison</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="container">
+        <h1>AI Model Comparison Tool</h1>
+        <div class="status" id="status">Ready</div>
+        <div class="input-section">
+            <input type="text" id="questionInput" placeholder="Enter your question here..." />
+            <select id="roundsSelect">
+                <option value="1">1 Round</option>
+                <option value="2">2 Rounds</option>
+                <option value="3" selected>3 Rounds</option>
+                <option value="4">4 Rounds</option>
+                <option value="5">5 Rounds</option>
+            </select>
+            <button id="submitBtn">Ask Models</button>
+        </div>
+        <div class="grid">
+            <div class="grid-item" id="grok">
+                <h3>Grok</h3>
+                <div class="output" id="grok-output">Waiting for response...</div>
+            </div>
+            <div class="grid-item" id="gpt">
+                <h3>GPT</h3>
+                <div class="output" id="gpt-output">Waiting for response...</div>
+            </div>
+            <div class="grid-item" id="claude">
+                <h3>Claude</h3>
+                <div class="output" id="claude-output">Waiting for response...</div>
+            </div>
+            <div class="grid-item" id="gemini">
+                <h3>Gemini</h3>
+                <div class="output" id="gemini-output">Waiting for response...</div>
+            </div>
+        </div>
+    </div>
+    <script src="/static/app.js"></script>
+</body>
+</html>

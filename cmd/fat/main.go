@@ -1,20 +1,20 @@
 package main
 
 import (
-	"bufio"
 	"context"
 	"encoding/json"
 	"flag"
 	"fmt"
 	"log"
+	"net/http"
 	"os"
-	"slices"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/gin-gonic/gin"
+	"github.com/gorilla/websocket"
 	"github.com/joho/godotenv"
-	"github.com/meedamian/fat/internal/constants"
 	"github.com/meedamian/fat/internal/models"
 	"github.com/meedamian/fat/internal/prompts"
 	"github.com/meedamian/fat/internal/types"
@@ -36,23 +36,20 @@ var (
 	noGeminiFlag = flag.Bool("no-gemini", false, "Exclude Gemini model")
 )
 
+var (
+	upgrader = websocket.Upgrader{
+		CheckOrigin: func(r *http.Request) bool {
+			return true // Allow all origins for development
+		},
+	}
+	clients = make(map[*websocket.Conn]bool)
+	clientsMutex sync.Mutex
+)
+
 func init() {
 }
 
 func main() {
-	flag.Parse()
-	args := flag.Args()
-	if len(args) == 0 {
-		log.Fatal("Question required")
-	}
-	question := strings.Join(args, " ")
-
-	// Generate start timestamp
-	ts := time.Now().Unix()
-
-	// Set in utils
-	utils.SetStartTS(ts)
-
 	// Load keys
 	loadKeys()
 
@@ -64,90 +61,302 @@ func main() {
 	// Init clients
 	models.InitClients(rates)
 
-	// Filter models
-	activeModels := filterModels()
-	if len(activeModels) == 0 {
-		log.Fatal("At least one model required")
+	// Filter models - include all by default for web version
+	activeModels := []*types.ModelInfo{}
+	for _, mi := range models.ModelMap {
+		activeModels = append(activeModels, mi)
 	}
 
 	// Check keys for active models
 	for _, mi := range activeModels {
 		if mi.APIKey == "" {
-			log.Fatalf("API key for %s missing", mi.Name)
+			log.Printf("Warning: API key for %s missing", mi.Name)
 		}
 	}
 
-	// Determine rounds
-	numRounds := *roundsFlag
-	if numRounds == -1 {
-		if *verbose {
-			fmt.Printf("Estimating rounds for question: %s\n", question)
-		}
-		if len(activeModels) == 1 {
-			numRounds = 1
-		} else {
-			numRounds = estimateRounds(question, activeModels)
+	// Setup Gin router
+	r := gin.Default()
+
+	// Serve static files
+	r.Static("/static", "./static")
+
+	// Routes
+	r.GET("/", func(c *gin.Context) {
+		c.File("./static/index.html")
+	})
+
+	r.GET("/ws", handleWebSocket)
+	r.POST("/question", func(c *gin.Context) { handleQuestion(c, ctx, activeModels) })
+
+	// Start server
+	log.Println("Starting FAT daemon on localhost:4444")
+	log.Fatal(r.Run(":4444"))
+}
+
+func broadcastMessage(message map[string]interface{}) {
+	clientsMutex.Lock()
+	defer clientsMutex.Unlock()
+
+	messageBytes, _ := json.Marshal(message)
+
+	for client := range clients {
+		if err := client.WriteMessage(websocket.TextMessage, messageBytes); err != nil {
+			log.Printf("WebSocket error: %v", err)
+			client.Close()
+			delete(clients, client)
 		}
 	}
-	if *verbose {
-		fmt.Printf("Decided on %d rounds\n", numRounds)
-	}
-	if numRounds > 1 && len(activeModels) == 1 {
-		log.Fatal("Rounds >1 require multiple models")
+}
+
+func handleWebSocket(c *gin.Context) {
+	conn, err := upgrader.Upgrade(c.Writer, c.Request, nil)
+	if err != nil {
+		log.Printf("WebSocket upgrade error: %v", err)
+		return
 	}
 
-	if *budget {
-		est := estimateBudget(question, activeModels, numRounds)
-		fmt.Printf("Estimated cost: $%.4f\nConfirm? (y/n): ", est)
-		reader := bufio.NewReader(os.Stdin)
-		resp, _ := reader.ReadString('\n')
-		if strings.TrimSpace(resp) != "y" {
-			return
-		}
-	}
+	clientsMutex.Lock()
+	clients[conn] = true
+	clientsMutex.Unlock()
 
-	if numRounds == 1 || len(activeModels) == 1 {
-		// Single mode
-		mi := activeModels[0]
-		prompt := prompts.InitialPrompt(question)
-		if *verbose {
-			fmt.Printf("Calling model %s with prompt: %s\n", mi.Name, prompt)
-		}
-		resp, full, tokIn, tokOut, err := models.CallModel(ctx, mi, prompt, nil)
+	defer func() {
+		clientsMutex.Lock()
+		delete(clients, conn)
+		clientsMutex.Unlock()
+		conn.Close()
+	}()
+
+	for {
+		_, _, err := conn.ReadMessage()
 		if err != nil {
-			log.Fatal(err)
-		}
-		if *verbose {
-			fmt.Printf("Response from %s: %s (tokens in: %d, out: %d)\n", mi.Name, resp.Refined, tokIn, tokOut)
-		}
-		utils.Log("single", mi.Name, prompt, full)
-		fmt.Println(resp.Refined)
-	} else {
-		// Multi mode
-		history := make(types.History)
-		for round := 0; round < numRounds; round++ {
-			if *verbose {
-				fmt.Printf("Starting round %d/%d\n", round+1, numRounds)
-			}
-			results := parallelCall(ctx, question, history, activeModels, round, numRounds)
-			for _, res := range results {
-				if res.Err != nil {
-					log.Printf("Model %s error: %v", res.ID, res.Err)
-					continue
-				}
-				history[res.ID] = append(history[res.ID], res.Resp)
-			}
-			if *verbose {
-				fmt.Printf("Round %d/%d completed\n", round+1, numRounds)
-			}
-		}
-		// Rank
-		winner := rankModels(ctx, question, history, activeModels)
-		fmt.Printf("Model %s was decided to be the best.\n\n%s\n", models.ModelMap[winner].Name, history[winner][len(history[winner])-1].Refined)
-		if *verbose {
-			fmt.Printf("Winner: %s\n", models.ModelMap[winner].Name)
+			break
 		}
 	}
+}
+
+func handleQuestion(c *gin.Context, ctx context.Context, activeModels []*types.ModelInfo) {
+	var req struct {
+		Question string `json:"question"`
+		Rounds   int    `json:"rounds"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(400, gin.H{"error": "Invalid request"})
+		return
+	}
+
+	if req.Question == "" {
+		c.JSON(400, gin.H{"error": "Question is required"})
+		return
+	}
+
+	if req.Rounds < 1 || req.Rounds > 10 {
+		req.Rounds = 3 // Default to 3 rounds
+	}
+
+	questionTS := time.Now().Unix()
+
+	// Send loading messages
+	for _, mi := range activeModels {
+		broadcastMessage(map[string]interface{}{
+			"type":   "loading",
+			"model":  mi.ID,
+		})
+	}
+
+	// Process question in background
+	go func() {
+		processQuestion(ctx, req.Question, req.Rounds, activeModels, questionTS)
+	}()
+
+	c.JSON(200, gin.H{"status": "processing"})
+}
+
+func processQuestion(ctx context.Context, question string, numRounds int, activeModels []*types.ModelInfo, questionTS int64) {
+	// Clear previous responses and send round start
+	broadcastMessage(map[string]interface{}{
+		"type": "clear",
+	})
+
+	history := make(types.History)
+
+	for round := 0; round < numRounds; round++ {
+		broadcastMessage(map[string]interface{}{
+			"type":   "round_start",
+			"round":  round + 1,
+			"total":  numRounds,
+		})
+
+		results := parallelCall(ctx, question, history, activeModels, round, numRounds, questionTS)
+
+		// Wait for all models to complete this round before moving to next round
+		for range activeModels {
+			<-results
+		}
+	}
+
+	// Ranking phase
+	broadcastMessage(map[string]interface{}{
+		"type": "ranking_start",
+	})
+
+	winner := rankModels(ctx, question, history, activeModels, questionTS)
+
+	broadcastMessage(map[string]interface{}{
+		"type":   "winner",
+		"model":  winner,
+		"answer": history[winner][len(history[winner])-1].Refined,
+	})
+}
+
+func parallelCall(ctx context.Context, question string, history types.History, activeModels []*types.ModelInfo, round int, numRounds int, questionTS int64) <-chan struct{} {
+	done := make(chan struct{}, len(activeModels))
+
+	for _, mi := range activeModels {
+		go func(mi *types.ModelInfo) {
+			defer func() { done <- struct{}{} }()
+
+			var prompt string
+			if round == 0 {
+				prompt = prompts.InitialPrompt(question)
+			} else {
+				context := utils.BuildContext(question, history, mi.ID)
+				suggs := utils.GetSuggestionsForModel(history, mi.ID)
+				if round == numRounds-1 {
+					prompt = prompts.FinalPrompt(question, context, suggs, mi, round, numRounds, activeModels)
+				} else {
+					prompt = prompts.RefinePrompt(question, context, suggs, mi, round, numRounds, activeModels)
+				}
+			}
+			resp, full, _, _, err := models.CallModel(ctx, mi, prompt, nil)
+			if err == nil {
+				utils.Log(questionTS, fmt.Sprintf("R%d", round+1), mi.Name, prompt, full)
+			}
+
+			// Send response immediately
+			if err != nil {
+				broadcastMessage(map[string]interface{}{
+					"type":  "error",
+					"model": mi.ID,
+					"round": round + 1,
+					"error": err.Error(),
+				})
+			} else {
+				broadcastMessage(map[string]interface{}{
+					"type":     "response",
+					"model":    mi.ID,
+					"round":    round + 1,
+					"response": resp.Refined,
+				})
+				// Update history immediately for next round
+				history[mi.ID] = append(history[mi.ID], resp)
+			}
+		}(mi)
+	}
+
+	return done
+}
+
+func rankModels(ctx context.Context, question string, history types.History, activeModels []*types.ModelInfo, questionTS int64) string {
+	// Build final answers context
+	finalAnswers := "Final answers from all models:\n"
+	nameToId := make(map[string]string)
+	for _, mi := range activeModels {
+		if responses, ok := history[mi.ID]; ok && len(responses) > 0 {
+			final := responses[len(responses)-1].Refined
+			finalAnswers += fmt.Sprintf("Model %s:\n%s\n\n", mi.Name, final)
+		}
+		nameToId[mi.Name] = mi.ID
+	}
+
+	// Collect rankings from all models
+	positions := make(map[string][]int)
+	var wg sync.WaitGroup
+	ch := make(chan struct {
+		id      string
+		ranking []string
+		err     error
+	}, len(activeModels))
+
+	for _, mi := range activeModels {
+		wg.Add(1)
+		go func(mi *types.ModelInfo) {
+			defer wg.Done()
+			prompt := prompts.RankPrompt(question, finalAnswers, activeModels, mi)
+			resp, full, _, _, err := models.CallModel(ctx, mi, prompt, nil)
+			if err != nil {
+				ch <- struct {
+					id      string
+					ranking []string
+					err     error
+				}{mi.ID, nil, err}
+				return
+			}
+			utils.Log(questionTS, "rank", mi.Name, prompt, full)
+			rankingStr := strings.TrimSpace(resp.Refined)
+			ranking := strings.Split(rankingStr, " > ")
+			for i, name := range ranking {
+				ranking[i] = strings.TrimSpace(name)
+			}
+			ch <- struct {
+				id      string
+				ranking []string
+				err     error
+			}{mi.ID, ranking, nil}
+		}(mi)
+	}
+
+	wg.Wait()
+	close(ch)
+
+	for res := range ch {
+		if res.err != nil {
+			continue
+		}
+		if len(res.ranking) == len(activeModels) {
+			for i, name := range res.ranking {
+				positions[name] = append(positions[name], i+1) // 1-based position
+			}
+		}
+	}
+
+	// Calculate average positions
+	type rankInfo struct {
+		name  string
+		avg   float64
+		first int
+	}
+	var ranks []rankInfo
+	for name, pos := range positions {
+		if len(pos) == 0 {
+			continue
+		}
+		sum := 0
+		first := 0
+		for _, p := range pos {
+			sum += p
+			if p == 1 {
+				first++
+			}
+		}
+		avg := float64(sum) / float64(len(pos))
+		ranks = append(ranks, rankInfo{name: name, avg: avg, first: first})
+	}
+
+	// Find winner: lowest avg, then most first places
+	best := rankInfo{avg: 1000}
+	for _, r := range ranks {
+		if r.avg < best.avg || (r.avg == best.avg && r.first > best.first) {
+			best = r
+		}
+	}
+
+	winnerName := best.name
+	winnerID, ok := nameToId[winnerName]
+	if !ok {
+		winnerID = activeModels[0].ID
+	}
+
+	return winnerID
 }
 
 func loadKeys() {
@@ -198,193 +407,4 @@ func loadKeys() {
 		}
 	}
 	// Check removed, done in main for active models
-}
-
-func filterModels() []*types.ModelInfo {
-	var active []*types.ModelInfo
-	includes := []string{}
-	if *grokFlag {
-		includes = append(includes, "grok")
-	}
-	if *gptFlag {
-		includes = append(includes, "gpt")
-	}
-	if *claudeFlag {
-		includes = append(includes, "claude")
-	}
-	if *geminiFlag {
-		includes = append(includes, "gemini")
-	}
-	excludes := []string{}
-	if *noGrokFlag {
-		excludes = append(excludes, "grok")
-	}
-	if *noGptFlag {
-		excludes = append(excludes, "gpt")
-	}
-	if *noClaudeFlag {
-		excludes = append(excludes, "claude")
-	}
-	if *noGeminiFlag {
-		excludes = append(excludes, "gemini")
-	}
-	for _, mi := range models.ModelMap {
-		if len(includes) > 0 && !slices.Contains(includes, mi.ID) {
-			continue
-		}
-		if slices.Contains(excludes, mi.ID) {
-			continue
-		}
-		active = append(active, mi)
-	}
-	return active
-}
-
-func estimateRounds(question string, models []*types.ModelInfo) int {
-	// Stub: return 3
-	return 3
-}
-
-func estimateBudget(question string, activeModels []*types.ModelInfo, rounds int) float64 {
-	estTokIn := utils.EstTokens(question) * int64(rounds)
-	estTokOut := constants.EstTokOutPerRound * int64(rounds)
-	total := 0.0
-	for _, mi := range activeModels {
-		total += models.CostForToks(mi, estTokIn, estTokOut)
-	}
-	return total
-}
-
-func parallelCall(ctx context.Context, question string, history types.History, activeModels []*types.ModelInfo, round int, numRounds int) map[string]types.RoundRes {
-	results := make(map[string]types.RoundRes)
-	var wg sync.WaitGroup
-	ch := make(chan types.RoundRes, len(activeModels))
-	for _, mi := range activeModels {
-		wg.Add(1)
-		go func(mi *types.ModelInfo) {
-			defer wg.Done()
-			var context string
-			var prompt string
-			if round == 0 {
-				prompt = prompts.InitialPrompt(question)
-			} else {
-				context = utils.BuildContext(question, history, mi.ID)
-				suggs := utils.GetSuggestionsForModel(history, mi.ID)
-				if round == numRounds-1 {
-					prompt = prompts.FinalPrompt(question, context, suggs, mi, round, numRounds, activeModels)
-				} else {
-					prompt = prompts.RefinePrompt(question, context, suggs, mi, round, numRounds, activeModels)
-				}
-			}
-			resp, full, _, _, err := models.CallModel(ctx, mi, prompt, nil) // history as messages?
-			if err == nil {
-				utils.Log(fmt.Sprintf("R%d", round+1), mi.Name, prompt, full)
-			}
-			ch <- types.RoundRes{ID: mi.ID, Resp: resp, Err: err}
-		}(mi)
-	}
-	wg.Wait()
-	close(ch)
-	for res := range ch {
-		results[res.ID] = res
-	}
-	return results
-}
-
-func rankModels(ctx context.Context, question string, history types.History, activeModels []*types.ModelInfo) string {
-	// Build final answers context
-	finalAnswers := "Final answers from all models:\n"
-	nameToId := make(map[string]string)
-	for _, mi := range activeModels {
-		if responses, ok := history[mi.ID]; ok && len(responses) > 0 {
-			final := responses[len(responses)-1].Refined
-			finalAnswers += fmt.Sprintf("Model %s:\n%s\n\n", mi.Name, final)
-		}
-		nameToId[mi.Name] = mi.ID
-	}
-	// Collect rankings from all models
-	positions := make(map[string][]int)
-	var wg sync.WaitGroup
-	ch := make(chan struct {
-		id       string
-		ranking  []string
-		err      error
-	}, len(activeModels))
-	for _, mi := range activeModels {
-		wg.Add(1)
-		go func(mi *types.ModelInfo) {
-			defer wg.Done()
-			prompt := prompts.RankPrompt(question, finalAnswers, activeModels, mi)
-			resp, full, _, _, err := models.CallModel(ctx, mi, prompt, nil)
-			if err != nil {
-				ch <- struct {
-					id       string
-					ranking  []string
-					err      error
-				}{mi.ID, nil, err}
-				return
-			}
-			utils.Log("rank", mi.Name, prompt, full)
-			rankingStr := strings.TrimSpace(resp.Refined)
-			ranking := strings.Split(rankingStr, " > ")
-			for i, name := range ranking {
-				ranking[i] = strings.TrimSpace(name)
-			}
-			ch <- struct {
-				id       string
-				ranking  []string
-				err      error
-			}{mi.ID, ranking, nil}
-		}(mi)
-	}
-	wg.Wait()
-	close(ch)
-	for res := range ch {
-		if res.err != nil {
-			if *verbose {
-				log.Printf("Ranking error for %s: %v", res.id, res.err)
-			}
-			continue
-		}
-		if len(res.ranking) == len(activeModels) {
-			for i, name := range res.ranking {
-				positions[name] = append(positions[name], i+1) // 1-based position
-			}
-		}
-	}
-	// Calculate average positions
-	type rankInfo struct {
-		name  string
-		avg   float64
-		first int
-	}
-	var ranks []rankInfo
-	for name, pos := range positions {
-		if len(pos) == 0 {
-			continue
-		}
-		sum := 0
-		first := 0
-		for _, p := range pos {
-			sum += p
-			if p == 1 {
-				first++
-			}
-		}
-		avg := float64(sum) / float64(len(pos))
-		ranks = append(ranks, rankInfo{name: name, avg: avg, first: first})
-	}
-	// Find winner: lowest avg, then most first places
-	best := rankInfo{avg: 1000}
-	for _, r := range ranks {
-		if r.avg < best.avg || (r.avg == best.avg && r.first > best.first) {
-			best = r
-		}
-	}
-	winnerName := best.name
-	winnerID, ok := nameToId[winnerName]
-	if !ok {
-		winnerID = activeModels[0].ID
-	}
-	return winnerID
 }
