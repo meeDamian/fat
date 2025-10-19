@@ -358,21 +358,22 @@ func processQuestion(ctx context.Context, question string, numRounds int, active
 		"request_id": requestID,
 	})
 
-	winner := rankModels(ctx, requestID, question, replies, activeModels, questionTS, reqMetrics)
+	winnerID, runnerUpID := rankModels(ctx, requestID, question, replies, activeModels, questionTS, reqMetrics)
 	
-	reqMetrics.Complete(winner)
+	reqMetrics.Complete(winnerID)
 	
 	logger.Info("question processing complete", slog.Any("metrics", reqMetrics.Summary()))
 
 	// Save to database
-	if err := saveToDatabase(ctx, reqMetrics, question, winner); err != nil {
+	if err := saveToDatabase(ctx, reqMetrics, question, winnerID); err != nil {
 		logger.Error("failed to save to database", slog.Any("error", err))
 	}
 
 	broadcastMessage(map[string]any{
 		"type":       "winner",
-		"model":      winner,
-		"answer":     replies[winner],
+		"model":      winnerID,
+		"runner_up":  runnerUpID,
+		"answer":     replies[winnerID],
 		"request_id": requestID,
 		"metrics":    reqMetrics.Summary(),
 	})
@@ -474,7 +475,7 @@ func parallelCall(ctx context.Context, requestID, question string, replies map[s
 	return results
 }
 
-func rankModels(ctx context.Context, requestID, question string, replies map[string]types.Reply, activeModels []*types.ModelInfo, questionTS int64, reqMetrics *metrics.RequestMetrics) string {
+func rankModels(ctx context.Context, requestID, question string, replies map[string]types.Reply, activeModels []*types.ModelInfo, questionTS int64, reqMetrics *metrics.RequestMetrics) (string, string) {
 	logger := appLogger.With("request_id", requestID)
 	logger.Info("starting ranking phase", slog.Int("num_models", len(activeModels)))
 	
@@ -573,29 +574,40 @@ func rankModels(ctx context.Context, requestID, question string, replies map[str
 		slog.Int("valid_rankings", len(rankings)),
 		slog.Int("total_models", len(activeModels)))
 
-	winner := shared.AggregateRankings(rankings, allAgentNames)
+	winner, runnerUp := shared.AggregateRankings(rankings, allAgentNames)
 	
 	// Convert winner name back to ID
+	winnerID := ""
+	runnerUpID := ""
 	for _, mi := range activeModels {
 		if mi.Name == winner {
-			logger.Info("ranking complete", slog.String("winner", winner))
-			return mi.ID
+			winnerID = mi.ID
 		}
+		if mi.Name == runnerUp {
+			runnerUpID = mi.ID
+		}
+	}
+	
+	if winnerID != "" {
+		logger.Info("ranking complete", 
+			slog.String("winner", winner),
+			slog.String("runner_up", runnerUp))
+		return winnerID, runnerUpID
 	}
 
 	// Fallback to first model with response
 	for _, mi := range activeModels {
 		if _, ok := replies[mi.ID]; ok {
 			logger.Warn("ranking fallback to first responder", slog.String("model", mi.ID))
-			return mi.ID
+			return mi.ID, ""
 		}
 	}
 
 	// Final fallback
 	if len(activeModels) > 0 {
-		return activeModels[0].ID
+		return activeModels[0].ID, ""
 	}
-	return ""
+	return "", ""
 }
 
 // saveToDatabase persists request metrics to SQLite

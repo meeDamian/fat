@@ -27,7 +27,7 @@ func NewClaudeModel(info *types.ModelInfo) *ClaudeModel {
 
 // Prompt implements the Model interface
 func (m *ClaudeModel) Prompt(ctx context.Context, question string, meta types.Meta, replies map[string]types.Reply, discussion map[string]map[string][]types.DiscussionMessage) (types.ModelResult, error) {
-	prompt := shared.FormatPrompt(m.info.Name, question, meta, replies, discussion)
+	prompt := shared.FormatPrompt(m.info.ID, m.info.Name, question, meta, replies, discussion)
 
 	params := anthropic.MessageNewParams{
 		Model:     anthropic.Model(m.info.Name),

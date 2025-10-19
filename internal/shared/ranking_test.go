@@ -38,13 +38,16 @@ func TestAggregateRankings(t *testing.T) {
 
 	allAgents := []string{"Grok", "GPT", "Claude"}
 
-	winner := AggregateRankings(rankings, allAgents)
+	winner, runnerUp := AggregateRankings(rankings, allAgents)
 
 	// Grok should win: 3+2+3=8 points
 	// GPT: 2+3+1=6 points
 	// Claude: 1+1+2=4 points
 	if winner != "Grok" {
 		t.Errorf("Expected Grok to win, got %s", winner)
+	}
+	if runnerUp != "GPT" {
+		t.Errorf("Expected GPT as runner-up, got %s", runnerUp)
 	}
 }
 
@@ -63,15 +66,16 @@ func TestFormatRankingPrompt(t *testing.T) {
 
 	// Verify key sections
 	tests := []string{
-		"You are Grok",
-		"# QUESTION",
-		"# ANSWERS",
+		"acting as a JUDGE",
+		"ORIGINAL QUESTION",
+		"# ANSWERS TO RANK",
 		"# YOUR TASK",
-		"# RANKING",
+		"YOUR RESPONSE FORMAT",
 		"Accuracy",
 		"Completeness",
 		"Clarity",
 		"Insight",
+		"RANKING MODE",
 	}
 
 	for _, test := range tests {

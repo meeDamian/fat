@@ -12,7 +12,9 @@ import (
 )
 
 // FormatPrompt creates a standardized prompt for all models
-func FormatPrompt(modelName, question string, meta types.Meta, replies map[string]types.Reply, discussion map[string]map[string][]types.DiscussionMessage) string {
+// modelID is the short ID (e.g., "grok", "claude") used for discussion lookup
+// modelName is the full name (e.g., "grok-4-fast") used for display
+func FormatPrompt(modelID, modelName, question string, meta types.Meta, replies map[string]types.Reply, discussion map[string]map[string][]types.DiscussionMessage) string {
 	var b strings.Builder
 
 	otherAgentsStr := "none"
@@ -54,7 +56,7 @@ func FormatPrompt(modelName, question string, meta types.Meta, replies map[strin
 		}
 
 		// Show conversation threads with other agents
-		if threads, hasThreads := discussion[modelName]; hasThreads && len(threads) > 0 {
+		if threads, hasThreads := discussion[modelID]; hasThreads && len(threads) > 0 {
 			// Check if there are any threads with messages
 			hasContent := false
 			for _, messages := range threads {

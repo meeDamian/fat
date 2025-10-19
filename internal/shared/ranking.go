@@ -12,10 +12,21 @@ import (
 func FormatRankingPrompt(agentName, question string, otherAgents []string, finalAnswers map[string]types.Reply) string {
 	var b strings.Builder
 
-	b.WriteString("CRITICAL: This is a RANKING task, NOT a question-answering task. Do NOT provide a new answer.\n\n")
-	b.WriteString(fmt.Sprintf("You are %s. Your ONLY job is to rank the existing answers below.\n\n", agentName))
+	b.WriteString("╔══════════════════════════════════════════════════════════════╗\n")
+	b.WriteString("║               🚨 RANKING MODE - NOT WRITING MODE 🚨          ║\n")
+	b.WriteString("║                                                              ║\n")
+	b.WriteString("║  YOUR TASK: Judge and rank the answers shown below          ║\n")
+	b.WriteString("║  YOUR OUTPUT: A list of agent names, best to worst          ║\n")
+	b.WriteString("║                                                              ║\n")
+	b.WriteString("║  ❌ DO NOT write a new answer to the question                ║\n")
+	b.WriteString("║  ❌ DO NOT use # ANSWER or # RATIONALE sections              ║\n")
+	b.WriteString("║  ❌ DO NOT explain your ranking                              ║\n")
+	b.WriteString("║                                                              ║\n")
+	b.WriteString("║  ✅ ONLY output agent names, one per line                    ║\n")
+	b.WriteString("╚══════════════════════════════════════════════════════════════╝\n\n")
+	b.WriteString(fmt.Sprintf("You are %s acting as a JUDGE, not as a writer.\n\n", agentName))
 	
-	b.WriteString("# QUESTION\n\n")
+	b.WriteString("# ORIGINAL QUESTION (for context only - DO NOT answer this)\n\n")
 	b.WriteString(question)
 	b.WriteString("\n\n")
 	
@@ -40,15 +51,27 @@ func FormatRankingPrompt(agentName, question string, otherAgents []string, final
 	b.WriteString("- **Insight** (10%): Depth and originality\n\n")
 	b.WriteString("Be objective. You may rank yourself anywhere. Judge on merit, not identity.\n\n")
 	
-	b.WriteString("# RANKING\n\n")
-	b.WriteString("IMPORTANT: Output ONLY the section below with agent names reordered from best to worst.\n")
-	b.WriteString("Do NOT include # ANSWER, # RATIONALE, or any other sections.\n")
-	b.WriteString("Do NOT provide explanations or commentary.\n")
-	b.WriteString("ONLY output agent names, one per line:\n\n")
+	b.WriteString("═══════════════════════════════════════════════════════════════\n")
+	b.WriteString("                    YOUR RESPONSE FORMAT                      \n")
+	b.WriteString("═══════════════════════════════════════════════════════════════\n\n")
+	b.WriteString("Output ONLY agent names, one per line, ordered from best to worst.\n")
+	b.WriteString("NO sections like # ANSWER or # RATIONALE.\n")
+	b.WriteString("NO explanations or commentary.\n")
+	b.WriteString("JUST the list:\n\n")
 	for _, agent := range allAgents {
 		b.WriteString(fmt.Sprintf("%s\n", agent))
 	}
-	b.WriteString("\n(Reorder the above names from best to worst)")
+	b.WriteString("\n(Reorder the above names from best to worst)\n\n")
+	b.WriteString("══════════════════════════════════════════════════════════════\n")
+	b.WriteString("YOUR RESPONSE MUST BE ONLY AGENT NAMES IN THIS EXACT FORMAT:\n")
+	b.WriteString("══════════════════════════════════════════════════════════════\n\n")
+	b.WriteString("gpt-5-mini\n")
+	b.WriteString("grok-4-fast\n")
+	b.WriteString("gemini-2.5-flash\n")
+	b.WriteString("claude-3-5-haiku-20241022\n\n")
+	b.WriteString("═══════════════════════════════════════════════════════════════\n")
+	b.WriteString("NO OTHER TEXT, NO SECTIONS, NO EXPLANATIONS - JUST THE LIST!\n")
+	b.WriteString("═══════════════════════════════════════════════════════════════")
 
 	return b.String()
 }
@@ -56,29 +79,51 @@ func FormatRankingPrompt(agentName, question string, otherAgents []string, final
 // ParseRanking extracts agent names from ranking response
 func ParseRanking(content string) []string {
 	var ranking []string
-	inRankingSection := false
-
+	
+	// Check if model provided # ANSWER instead of ranking
+	hasAnswerSection := strings.Contains(content, "# ANSWER")
+	if hasAnswerSection {
+		fmt.Printf("DEBUG: Model provided # ANSWER section instead of ranking\n")
+		return ranking
+	}
+	
+	hasRankingSection := strings.Contains(content, "# RANKING")
 	lines := strings.Split(content, "\n")
+	inRankingSection := !hasRankingSection // If no section header, assume whole response is ranking
+	
 	for _, line := range lines {
 		line = strings.TrimSpace(line)
 		
-		// Start capturing after # RANKING header
+		// Start capturing after # RANKING header if it exists
 		if strings.HasPrefix(line, "# RANKING") {
 			inRankingSection = true
 			continue
 		}
 		
-		// Stop if we hit another section (like # ANSWER or # RATIONALE)
-		if inRankingSection && strings.HasPrefix(line, "#") {
+		// Stop if we hit another section
+		if strings.HasPrefix(line, "#") {
 			break
 		}
 
 		if inRankingSection && line != "" {
-			// Skip instruction lines
-			if strings.Contains(line, "IMPORTANT:") || strings.Contains(line, "Do NOT") || 
-			   strings.Contains(line, "ONLY output") || strings.Contains(line, "Reorder") ||
-			   strings.Contains(line, "one per line") || strings.Contains(line, "best to worst") ||
-			   strings.HasPrefix(line, "(") {
+			// Skip instruction lines, separators, code blocks
+			if strings.Contains(line, "IMPORTANT:") || 
+			   strings.Contains(line, "Do NOT") || 
+			   strings.Contains(line, "ONLY output") || 
+			   strings.Contains(line, "Reorder") ||
+			   strings.Contains(line, "one per line") || 
+			   strings.Contains(line, "best to worst") ||
+			   strings.Contains(line, "YOUR RESPONSE") ||
+			   strings.Contains(line, "EXACT FORMAT") ||
+			   strings.Contains(line, "NO OTHER TEXT") ||
+			   strings.HasPrefix(line, "(") ||
+			   strings.HasPrefix(line, "═") ||
+			   strings.HasPrefix(line, "╔") ||
+			   strings.HasPrefix(line, "╚") ||
+			   strings.HasPrefix(line, "║") ||
+			   strings.HasPrefix(line, "```") ||
+			   strings.HasPrefix(line, "[") ||
+			   strings.HasPrefix(line, "]") {
 				continue
 			}
 			
@@ -87,12 +132,10 @@ func ParseRanking(content string) []string {
 			agentName = strings.TrimPrefix(agentName, "Agent ")
 			agentName = strings.TrimPrefix(agentName, "- ")
 			agentName = strings.TrimPrefix(agentName, "* ")
-			agentName = strings.TrimPrefix(agentName, "1. ")
-			agentName = strings.TrimPrefix(agentName, "2. ")
-			agentName = strings.TrimPrefix(agentName, "3. ")
-			agentName = strings.TrimPrefix(agentName, "4. ")
-			agentName = strings.TrimSuffix(agentName, ".")
+			agentName = strings.TrimPrefix(agentName, "\"")
+			agentName = strings.TrimSuffix(agentName, "\"")
 			agentName = strings.TrimSuffix(agentName, ",")
+			agentName = strings.TrimSuffix(agentName, ".")
 			
 			// Accept any non-empty string that doesn't look like instructions
 			if agentName != "" && len(agentName) > 2 {
@@ -105,7 +148,8 @@ func ParseRanking(content string) []string {
 }
 
 // AggregateRankings combines rankings from multiple agents using Borda count
-func AggregateRankings(rankings map[string][]string, allAgents []string) string {
+// Returns winner (1st place) and runnerUp (2nd place)
+func AggregateRankings(rankings map[string][]string, allAgents []string) (string, string) {
 	scores := make(map[string]int)
 	
 	// Initialize scores
@@ -114,25 +158,47 @@ func AggregateRankings(rankings map[string][]string, allAgents []string) string 
 	}
 
 	// Borda count: first place gets n points, second gets n-1, etc.
-	for _, ranking := range rankings {
+	for rankerID, ranking := range rankings {
 		points := len(allAgents)
+		fmt.Printf("DEBUG: Processing ranking from %s: %v\n", rankerID, ranking)
 		for _, agent := range ranking {
 			if _, exists := scores[agent]; exists {
+				fmt.Printf("DEBUG: Awarding %d points to %s\n", points, agent)
 				scores[agent] += points
 				points--
+			} else {
+				fmt.Printf("DEBUG: Agent %s not in allAgents list!\n", agent)
 			}
 		}
 	}
 
-	// Find winner
-	maxScore := -1
-	winner := ""
+	// Log all scores before finding winners
+	fmt.Printf("DEBUG: Final scores:\n")
 	for agent, score := range scores {
-		if score > maxScore {
-			maxScore = score
+		fmt.Printf("DEBUG:   %s: %d points\n", agent, score)
+	}
+
+	// Find top 2 winners
+	firstScore := -1
+	secondScore := -1
+	winner := ""
+	runnerUp := ""
+	
+	for agent, score := range scores {
+		if score > firstScore {
+			// New winner, previous winner becomes runner-up
+			secondScore = firstScore
+			runnerUp = winner
+			firstScore = score
 			winner = agent
+		} else if score > secondScore && agent != winner {
+			// New runner-up
+			secondScore = score
+			runnerUp = agent
 		}
 	}
 
-	return winner
+	fmt.Printf("DEBUG: Winner selected: %s with %d points\n", winner, firstScore)
+	fmt.Printf("DEBUG: Runner-up selected: %s with %d points\n", runnerUp, secondScore)
+	return winner, runnerUp
 }

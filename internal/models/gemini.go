@@ -36,7 +36,7 @@ func (m *GeminiModel) Prompt(ctx context.Context, question string, meta types.Me
 		return types.ModelResult{}, fmt.Errorf("gemini client not initialized")
 	}
 
-	prompt := shared.FormatPrompt(m.info.Name, question, meta, replies, discussion)
+	prompt := shared.FormatPrompt(m.info.ID, m.info.Name, question, meta, replies, discussion)
 
 	result, err := m.client.Models.GenerateContent(ctx, m.info.Name, genai.Text(prompt), nil)
 	if err != nil {

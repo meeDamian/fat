@@ -26,7 +26,7 @@ func TestFormatPrompt(t *testing.T) {
 		},
 	}
 
-	prompt := FormatPrompt("Grok", "What is AI?", meta, replies, discussion)
+	prompt := FormatPrompt("grok", "Grok", "What is AI?", meta, replies, discussion)
 
 	// Verify key sections are present
 	if !strings.Contains(prompt, "You are Grok in a 3-agent collaboration") {
@@ -104,7 +104,7 @@ func TestFormatPromptRound1(t *testing.T) {
 		OtherAgents: []string{"GPT", "Claude"},
 	}
 
-	prompt := FormatPrompt("Grok", "Test question", meta, map[string]types.Reply{}, map[string]map[string][]types.DiscussionMessage{})
+	prompt := FormatPrompt("grok", "Grok", "Test question", meta, map[string]types.Reply{}, map[string]map[string][]types.DiscussionMessage{})
 
 	// Round 1 should NOT have replies or discussion sections
 	if strings.Contains(prompt, "# REPLIES from previous round:") {
