@@ -46,7 +46,7 @@ The server will start on `http://localhost:4444` (or your configured address).
 
 Open `http://localhost:4444` in your browser and:
 1. Enter your question
-2. Select number of rounds (1-10, default 3)
+2. Select number of rounds (3-10, default 3)
 3. Click "Ask" to start the collaboration
 4. Watch real-time updates as models discuss and refine answers
 5. See the final winner selected by democratic vote

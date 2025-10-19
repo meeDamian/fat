@@ -151,7 +151,7 @@ func normalizeAgentName(agentName string, activeModels []*types.ModelInfo) strin
 	return ""
 }
 
-func broadcastMessage(message map[string]interface{}) {
+func broadcastMessage(message map[string]any) {
 	clientsMutex.Lock()
 	defer clientsMutex.Unlock()
 
@@ -200,7 +200,7 @@ func handleWebSocket(c *gin.Context) {
 	}
 
 	for {
-		var msg map[string]interface{}
+		var msg map[string]any
 		err := conn.ReadJSON(&msg)
 		if err != nil {
 			appLogger.Debug("websocket read error", slog.Any("error", err))
@@ -219,10 +219,10 @@ func handleWebSocket(c *gin.Context) {
 	}
 }
 
-func handleQuestionWS(conn *websocket.Conn, ctx context.Context, activeModels []*types.ModelInfo, msg map[string]interface{}) {
+func handleQuestionWS(conn *websocket.Conn, ctx context.Context, activeModels []*types.ModelInfo, msg map[string]any) {
 	question, ok := msg["question"].(string)
 	if !ok || question == "" {
-		conn.WriteJSON(map[string]interface{}{
+		conn.WriteJSON(map[string]any{
 			"type":  "error",
 			"error": "Question is required",
 		})
@@ -231,7 +231,7 @@ func handleQuestionWS(conn *websocket.Conn, ctx context.Context, activeModels []
 
 	roundsFloat, ok := msg["rounds"].(float64)
 	rounds := int(roundsFloat)
-	if !ok || rounds < 1 || rounds > 10 {
+	if !ok || rounds < 3 || rounds > 10 {
 		rounds = 3 // Default to 3 rounds
 	}
 
@@ -239,7 +239,7 @@ func handleQuestionWS(conn *websocket.Conn, ctx context.Context, activeModels []
 
 	// Send loading messages
 	for _, mi := range activeModels {
-		broadcastMessage(map[string]interface{}{
+		broadcastMessage(map[string]any{
 			"type":  "loading",
 			"model": mi.ID,
 		})
@@ -268,7 +268,7 @@ func processQuestion(ctx context.Context, question string, numRounds int, active
 		slog.Int("models", len(activeModels)))
 
 	// Clear previous responses and send round start
-	broadcastMessage(map[string]interface{}{
+	broadcastMessage(map[string]any{
 		"type":       "clear",
 		"request_id": requestID,
 	})
@@ -281,7 +281,7 @@ func processQuestion(ctx context.Context, question string, numRounds int, active
 	for round := 0; round < numRounds; round++ {
 		logger.Info("starting round", slog.Int("round", round+1))
 		
-		broadcastMessage(map[string]interface{}{
+		broadcastMessage(map[string]any{
 			"type":       "round_start",
 			"round":      round + 1,
 			"total":      numRounds,
@@ -299,7 +299,7 @@ func processQuestion(ctx context.Context, question string, numRounds int, active
 					slog.Int("round", round+1),
 					slog.Any("error", result.err))
 				
-				broadcastMessage(map[string]interface{}{
+				broadcastMessage(map[string]any{
 					"type":       "error",
 					"model":      result.modelID,
 					"round":      round + 1,
@@ -340,7 +340,7 @@ func processQuestion(ctx context.Context, question string, numRounds int, active
 					discussion[targetID][result.modelID] = append(discussion[targetID][result.modelID], msg)
 				}
 
-				broadcastMessage(map[string]interface{}{
+				broadcastMessage(map[string]any{
 					"type":       "response",
 					"model":      result.modelID,
 					"round":      round + 1,
@@ -353,7 +353,7 @@ func processQuestion(ctx context.Context, question string, numRounds int, active
 
 	// Ranking phase
 	logger.Info("starting ranking phase")
-	broadcastMessage(map[string]interface{}{
+	broadcastMessage(map[string]any{
 		"type":       "ranking_start",
 		"request_id": requestID,
 	})
@@ -369,7 +369,7 @@ func processQuestion(ctx context.Context, question string, numRounds int, active
 		logger.Error("failed to save to database", slog.Any("error", err))
 	}
 
-	broadcastMessage(map[string]interface{}{
+	broadcastMessage(map[string]any{
 		"type":       "winner",
 		"model":      winner,
 		"answer":     replies[winner],

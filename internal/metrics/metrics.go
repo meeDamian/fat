@@ -130,7 +130,7 @@ func (rm *RequestMetrics) Duration() time.Duration {
 }
 
 // Summary returns a summary map for logging
-func (rm *RequestMetrics) Summary() map[string]interface{} {
+func (rm *RequestMetrics) Summary() map[string]any {
 	rm.mu.RLock()
 	defer rm.mu.RUnlock()
 
@@ -146,7 +146,7 @@ func (rm *RequestMetrics) Summary() map[string]interface{} {
 		mm.mu.Unlock()
 	}
 
-	return map[string]interface{}{
+	return map[string]any{
 		"request_id":       rm.RequestID,
 		"duration_ms":      rm.Duration().Milliseconds(),
 		"num_rounds":       rm.NumRounds,
