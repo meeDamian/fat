@@ -21,17 +21,18 @@ func SetStartTS(ts int64) {
 
 // Log writes a conversation entry to a log file
 func Log(questionTS int64, logType, modelName, prompt, response string) error {
-	// Ensure answers directory exists
-	if err := os.MkdirAll(answersDir, 0755); err != nil {
-		slog.Error("failed to create answers directory", 
-			slog.String("dir", answersDir),
+	// Create timestamp-specific directory
+	tsDir := fmt.Sprintf("%s/%d", answersDir, questionTS)
+	if err := os.MkdirAll(tsDir, 0755); err != nil {
+		slog.Error("failed to create timestamp directory", 
+			slog.String("dir", tsDir),
 			slog.Any("error", err))
-		return fmt.Errorf("failed to create answers directory: %w", err)
+		return fmt.Errorf("failed to create timestamp directory: %w", err)
 	}
 
 	diff := time.Now().Unix() - questionTS
 	diffStr := fmt.Sprintf("%04d", diff)
-	filename := fmt.Sprintf("%s/%d_%s_%s_%s.log", answersDir, questionTS, diffStr, logType, modelName)
+	filename := fmt.Sprintf("%s/%s_%s_%s.log", tsDir, diffStr, logType, modelName)
 	
 	file, err := os.OpenFile(filename, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {

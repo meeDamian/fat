@@ -20,13 +20,13 @@ const outputs = {
 };
 
 let ws;
+let lastTotalRounds = parseInt(roundsSelect.value, 10) || 3;
 const modelState = {
     grok: createEmptyModelState(),
     gpt: createEmptyModelState(),
     claude: createEmptyModelState(),
     gemini: createEmptyModelState()
 };
-let lastTotalRounds = parseInt(roundsSelect.value, 10) || 1;
 
 function createEmptyModelState() {
     return {

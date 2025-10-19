@@ -549,10 +549,14 @@ func rankModels(ctx context.Context, requestID, question string, replies map[str
 			}
 
 			mu.Lock()
-			rankings[mi.ID] = ranking
+			if len(ranking) == 0 {
+				mi.Logger.Warn("model failed to provide ranking - likely provided answer instead")
+			} else {
+				rankings[mi.ID] = ranking
+			}
 			mu.Unlock()
 
-			mi.Logger.Info("ranking completed", slog.Any("ranking", ranking))
+			mi.Logger.Info("ranking completed", slog.Any("ranking", ranking), slog.Int("count", len(ranking)))
 		}(mi)
 	}
 
@@ -563,6 +567,11 @@ func rankModels(ctx context.Context, requestID, question string, replies map[str
 	for _, mi := range activeModels {
 		allAgentNames = append(allAgentNames, mi.Name)
 	}
+	
+	// Log how many valid rankings we got
+	logger.Info("aggregating rankings", 
+		slog.Int("valid_rankings", len(rankings)),
+		slog.Int("total_models", len(activeModels)))
 
 	winner := shared.AggregateRankings(rankings, allAgentNames)
 	

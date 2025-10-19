@@ -2,6 +2,7 @@ package utils
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -37,8 +38,9 @@ func TestLog(t *testing.T) {
 		t.Error("Answers directory was not created")
 	}
 
-	// Verify file was created
-	files, err := filepath.Glob(filepath.Join(answersDir, "*.log"))
+	// Verify file was created in timestamp subdirectory
+	tsDir := filepath.Join(answersDir, fmt.Sprintf("%d", questionTS))
+	files, err := filepath.Glob(filepath.Join(tsDir, "*.log"))
 	if err != nil {
 		t.Fatalf("Failed to glob files: %v", err)
 	}
@@ -90,8 +92,9 @@ func TestLogMultipleCalls(t *testing.T) {
 		}
 	}
 
-	// Verify file exists and has multiple entries
-	files, err := filepath.Glob(filepath.Join(answersDir, "*.log"))
+	// Verify file exists and has multiple entries in timestamp subdirectory
+	tsDir := filepath.Join(answersDir, fmt.Sprintf("%d", questionTS))
+	files, err := filepath.Glob(filepath.Join(tsDir, "*.log"))
 	if err != nil {
 		t.Fatalf("Failed to glob files: %v", err)
 	}
