@@ -2,6 +2,8 @@ package shared
 
 import (
 	"testing"
+	
+	"github.com/meedamian/fat/internal/types"
 )
 
 func TestParseRanking(t *testing.T) {
@@ -47,10 +49,10 @@ func TestAggregateRankings(t *testing.T) {
 }
 
 func TestFormatRankingPrompt(t *testing.T) {
-	finalAnswers := map[string]string{
-		"Grok":   "Answer from Grok",
-		"GPT":    "Answer from GPT",
-		"Claude": "Answer from Claude",
+	finalAnswers := map[string]types.Reply{
+		"Grok":   {Answer: "Answer from Grok"},
+		"GPT":    {Answer: "Answer from GPT"},
+		"Claude": {Answer: "Answer from Claude"},
 	}
 
 	prompt := FormatRankingPrompt("Grok", "What is AI?", []string{"GPT", "Claude"}, finalAnswers)
@@ -63,13 +65,13 @@ func TestFormatRankingPrompt(t *testing.T) {
 	tests := []string{
 		"You are Grok",
 		"# QUESTION",
-		"# FINAL ANSWERS FROM ALL AGENTS",
-		"# RANKING CRITERIA",
-		"# OUTPUT FORMAT",
+		"# ANSWERS",
+		"# YOUR TASK",
 		"# RANKING",
-		"Factual Accuracy",
+		"Accuracy",
 		"Completeness",
-		"Clarity and Coherence",
+		"Clarity",
+		"Insight",
 	}
 
 	for _, test := range tests {

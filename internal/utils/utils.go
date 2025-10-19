@@ -88,7 +88,7 @@ func getDefaultRates() map[string]types.Rate {
 	return map[string]types.Rate{
 		"grok-4-fast":      {TS: now, In: 0.20, Out: 0.50},
 		"gpt-5-mini":       {TS: now, In: 0.25, Out: 2.00},
-		"claude-3.5-haiku": {TS: now, In: 0.80, Out: 4.00},
+		"claude-3-5-haiku-20241022": {TS: now, In: 0.80, Out: 4.00},
 		"gemini-2.5-flash": {TS: now, In: 0.35, Out: 1.05},
 	}
 }

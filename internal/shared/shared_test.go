@@ -14,10 +14,10 @@ func TestFormatPrompt(t *testing.T) {
 		OtherAgents: []string{"GPT", "Claude"},
 	}
 
-	replies := map[string]string{
-		"grok":   "Answer from Grok",
-		"gpt":    "Answer from GPT",
-		"claude": "Answer from Claude",
+	replies := map[string]types.Reply{
+		"grok":   {Answer: "Answer from Grok"},
+		"gpt":    {Answer: "Answer from GPT"},
+		"claude": {Answer: "Answer from Claude"},
 	}
 
 	discussion := map[string][]string{
@@ -35,7 +35,7 @@ func TestFormatPrompt(t *testing.T) {
 		t.Error("Missing round information")
 	}
 
-	if !strings.Contains(prompt, "--- QUESTION ---") {
+	if !strings.Contains(prompt, "# QUESTION") {
 		t.Error("Missing question section")
 	}
 
@@ -102,21 +102,31 @@ func TestFormatPromptRound1(t *testing.T) {
 		OtherAgents: []string{"GPT", "Claude"},
 	}
 
-	prompt := FormatPrompt("Grok", "Test question", meta, map[string]string{}, map[string][]string{})
+	prompt := FormatPrompt("Grok", "Test question", meta, map[string]types.Reply{}, map[string][]string{})
 
-	if !strings.Contains(prompt, "(None - this is round 1)") {
-		t.Error("Round 1 should indicate no previous replies")
+	// Round 1 should NOT have replies or discussion sections
+	if strings.Contains(prompt, "# REPLIES from previous round:") {
+		t.Error("Round 1 should not have replies section")
 	}
 
-	if !strings.Contains(prompt, "(No discussion yet)") {
-		t.Error("Round 1 should indicate no discussion yet")
+	if strings.Contains(prompt, "(None - this is round 1)") {
+		t.Error("Round 1 should not mention 'None - this is round 1'")
+	}
+
+	if strings.Contains(prompt, "(No discussion yet)") {
+		t.Error("Round 1 should not have discussion placeholder")
 	}
 	
-	if !strings.Contains(prompt, "This is round 1 - provide your initial analysis") {
+	if !strings.Contains(prompt, "This is round 1 - provide your initial answer") {
 		t.Error("Round 1 should have specific instructions")
 	}
 	
-	if !strings.Contains(prompt, "No DISCUSSION section needed in round 1") {
-		t.Error("Round 1 should mention no discussion needed")
+	if !strings.Contains(prompt, "# RATIONALE") {
+		t.Error("Round 1 should have RATIONALE section")
+	}
+	
+	// Round 1 should not have DISCUSSION section in format
+	if strings.Contains(prompt, "# DISCUSSION") && strings.Contains(prompt, "## With [AgentName]") {
+		t.Error("Round 1 should not have DISCUSSION format section")
 	}
 }

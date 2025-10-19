@@ -26,7 +26,7 @@ func NewOpenAIModel(info *types.ModelInfo) *OpenAIModel {
 }
 
 // Prompt implements the Model interface
-func (m *OpenAIModel) Prompt(ctx context.Context, question string, meta types.Meta, replies map[string]string, discussion map[string][]string) (types.ModelResult, error) {
+func (m *OpenAIModel) Prompt(ctx context.Context, question string, meta types.Meta, replies map[string]types.Reply, discussion map[string][]string) (types.ModelResult, error) {
 	prompt := shared.FormatPrompt(m.info.Name, question, meta, replies, discussion)
 
 	params := openai.ChatCompletionNewParams{

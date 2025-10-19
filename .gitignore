@@ -8,3 +8,4 @@ keys.json
 *.log
 .vscode/
 .idea/
+fat.db*

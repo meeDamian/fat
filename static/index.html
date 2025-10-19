@@ -7,38 +7,81 @@
     <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
-    <div class="container">
-        <h1>AI Model Comparison Tool</h1>
-        <div class="status" id="status">Ready</div>
-        <div class="input-section">
-            <input type="text" id="questionInput" placeholder="Enter your question here..." />
-            <select id="roundsSelect">
-                <option value="1">1 Round</option>
-                <option value="2">2 Rounds</option>
-                <option value="3" selected>3 Rounds</option>
-                <option value="4">4 Rounds</option>
-                <option value="5">5 Rounds</option>
-            </select>
-            <button id="submitBtn">Ask Models</button>
-        </div>
-        <div class="grid">
-            <div class="grid-item" id="grok">
-                <h3>Grok</h3>
-                <div class="output" id="grok-output">Waiting for response...</div>
-            </div>
-            <div class="grid-item" id="gpt">
-                <h3>GPT</h3>
-                <div class="output" id="gpt-output">Waiting for response...</div>
-            </div>
-            <div class="grid-item" id="claude">
-                <h3>Claude</h3>
-                <div class="output" id="claude-output">Waiting for response...</div>
-            </div>
-            <div class="grid-item" id="gemini">
-                <h3>Gemini</h3>
-                <div class="output" id="gemini-output">Waiting for response...</div>
-            </div>
-        </div>
+    <div class="app-shell">
+        <header class="hero">
+            <div class="badge">⚡️ Multi-Agent Collaboration</div>
+            <h1>FAT Collective Intelligence Lab</h1>
+            <p>Launch a coordinated debate between frontier models. Watch them iterate, challenge, and converge on the strongest answer.</p>
+        </header>
+
+        <main class="workspace">
+            <section class="control-panel" aria-label="Question controls">
+                <div class="control-inputs">
+                    <label for="questionInput" class="input-label">Ask a question</label>
+                    <div class="input-wrapper">
+                        <input type="text" id="questionInput" placeholder="e.g. Devise a sustainable lunar habitat strategy" autocomplete="off" />
+                        <button id="submitBtn" class="primary-btn">Launch Discussion</button>
+                    </div>
+                </div>
+                <div class="control-settings">
+                    <label for="roundsSelect">Rounds</label>
+                    <select id="roundsSelect">
+                        <option value="1">1</option>
+                        <option value="2">2</option>
+                        <option value="3" selected>3</option>
+                        <option value="4">4</option>
+                        <option value="5">5</option>
+                    </select>
+                    <div class="status-chip" id="status">Awaiting prompt</div>
+                </div>
+            </section>
+
+            <section id="conversationBoard" class="board hidden" aria-live="polite">
+                <div id="finalResult" class="final-result hidden"></div>
+                <div class="models-grid">
+                    <article class="model-card" id="grok" data-model="grok">
+                        <header>
+                            <span class="model-name">Grok</span>
+                            <span class="model-provider">xAI</span>
+                        </header>
+                        <div class="model-output" id="grok-output">
+                            <p class="placeholder">Responses will appear here once the collaboration begins.</p>
+                        </div>
+                    </article>
+                    <article class="model-card" id="gpt" data-model="gpt">
+                        <header>
+                            <span class="model-name">GPT</span>
+                            <span class="model-provider">OpenAI</span>
+                        </header>
+                        <div class="model-output" id="gpt-output">
+                            <p class="placeholder">Responses will appear here once the collaboration begins.</p>
+                        </div>
+                    </article>
+                    <article class="model-card" id="claude" data-model="claude">
+                        <header>
+                            <span class="model-name">Claude</span>
+                            <span class="model-provider">Anthropic</span>
+                        </header>
+                        <div class="model-output" id="claude-output">
+                            <p class="placeholder">Responses will appear here once the collaboration begins.</p>
+                        </div>
+                    </article>
+                    <article class="model-card" id="gemini" data-model="gemini">
+                        <header>
+                            <span class="model-name">Gemini</span>
+                            <span class="model-provider">Google</span>
+                        </header>
+                        <div class="model-output" id="gemini-output">
+                            <p class="placeholder">Responses will appear here once the collaboration begins.</p>
+                        </div>
+                    </article>
+                </div>
+            </section>
+        </main>
+
+        <footer class="footer">
+            <p>Powered by the FAT multi-agent orchestration engine. Monitor the debate, inspect rationales, and collect winners.</p>
+        </footer>
     </div>
     <script src="/static/app.js"></script>
 </body>

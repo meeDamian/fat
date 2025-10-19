@@ -128,7 +128,7 @@ func TestLoadRates(t *testing.T) {
 	}
 
 	// Should have default rates for all models
-	expectedModels := []string{"grok-4-fast", "gpt-5-mini", "claude-3.5-haiku", "gemini-2.5-flash"}
+	expectedModels := []string{"grok-4-fast", "gpt-5-mini", "claude-3-5-haiku-20241022", "gemini-2.5-flash"}
 	for _, model := range expectedModels {
 		if _, ok := rates[model]; !ok {
 			t.Errorf("Missing rate for model %s", model)

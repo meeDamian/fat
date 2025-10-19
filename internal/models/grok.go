@@ -36,7 +36,7 @@ type grokResponse struct {
 }
 
 // Prompt implements the Model interface
-func (m *GrokModel) Prompt(ctx context.Context, question string, meta types.Meta, replies map[string]string, discussion map[string][]string) (types.ModelResult, error) {
+func (m *GrokModel) Prompt(ctx context.Context, question string, meta types.Meta, replies map[string]types.Reply, discussion map[string][]string) (types.ModelResult, error) {
 	prompt := shared.FormatPrompt(m.info.Name, question, meta, replies, discussion)
 
 	// Build messages array

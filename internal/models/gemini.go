@@ -31,7 +31,7 @@ func NewGeminiModel(info *types.ModelInfo) *GeminiModel {
 }
 
 // Prompt implements the Model interface
-func (m *GeminiModel) Prompt(ctx context.Context, question string, meta types.Meta, replies map[string]string, discussion map[string][]string) (types.ModelResult, error) {
+func (m *GeminiModel) Prompt(ctx context.Context, question string, meta types.Meta, replies map[string]types.Reply, discussion map[string][]string) (types.ModelResult, error) {
 	if m.client == nil {
 		return types.ModelResult{}, fmt.Errorf("gemini client not initialized")
 	}

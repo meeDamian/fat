@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"strings"
 	"sync"
 	"time"
 
@@ -122,6 +123,32 @@ func main() {
 	if err := r.Run(appConfig.ServerAddress); err != nil {
 		appLogger.Error("server exited with error", slog.Any("error", err))
 	}
+}
+
+// normalizeAgentName converts any agent name variant (ID, full name, or display name) to model ID
+func normalizeAgentName(agentName string, activeModels []*types.ModelInfo) string {
+	agentName = strings.TrimSpace(agentName)
+	agentName = strings.ToLower(agentName)
+	
+	for _, mi := range activeModels {
+		// Check if it matches the ID
+		if strings.ToLower(mi.ID) == agentName {
+			return mi.ID
+		}
+		// Check if it matches the full name
+		if strings.ToLower(mi.Name) == agentName {
+			return mi.ID
+		}
+		// Check if it's a partial match (e.g., "grok" matches "grok-4-fast")
+		if strings.Contains(strings.ToLower(mi.Name), agentName) {
+			return mi.ID
+		}
+		if strings.Contains(strings.ToLower(mi.ID), agentName) {
+			return mi.ID
+		}
+	}
+	
+	return ""
 }
 
 func broadcastMessage(message map[string]interface{}) {
@@ -247,8 +274,8 @@ func processQuestion(ctx context.Context, question string, numRounds int, active
 	})
 
 	// Initialize conversation state
-	replies := make(map[string]string)      // agent -> latest reply
-	discussion := make(map[string][]string) // fromAgent -> list of messages
+	replies := make(map[string]types.Reply) // agent -> latest reply with answer and rationale
+	discussion := make(map[string][]string) // toAgent -> list of messages addressed to them
 
 	for round := 0; round < numRounds; round++ {
 		logger.Info("starting round", slog.Int("round", round+1))
@@ -280,14 +307,24 @@ func processQuestion(ctx context.Context, question string, numRounds int, active
 				})
 			} else {
 				// Update conversation state
-				replies[result.modelID] = result.reply.Answer
+				replies[result.modelID] = result.reply
 				
-				// Initialize discussion entry if needed and append messages
-				if _, exists := discussion[result.modelID]; !exists {
-					discussion[result.modelID] = []string{}
-				}
+				// Store discussion messages indexed by recipient
+				// Normalize agent names to model IDs for consistent lookup
 				for targetAgent, message := range result.reply.Discussion {
-					discussion[result.modelID] = append(discussion[result.modelID], fmt.Sprintf("To %s: %s", targetAgent, message))
+					// Normalize target agent name to model ID
+					targetID := normalizeAgentName(targetAgent, activeModels)
+					if targetID == "" {
+						logger.Warn("could not normalize agent name", 
+							slog.String("agent", targetAgent),
+							slog.String("from", result.modelID))
+						continue
+					}
+					
+					if _, exists := discussion[targetID]; !exists {
+						discussion[targetID] = []string{}
+					}
+					discussion[targetID] = append(discussion[targetID], message)
 				}
 
 				broadcastMessage(map[string]interface{}{
@@ -334,7 +371,7 @@ type callResult struct {
 	err     error
 }
 
-func parallelCall(ctx context.Context, requestID, question string, replies map[string]string, discussion map[string][]string, activeModels []*types.ModelInfo, round int, numRounds int, questionTS int64, reqMetrics *metrics.RequestMetrics) <-chan callResult {
+func parallelCall(ctx context.Context, requestID, question string, replies map[string]types.Reply, discussion map[string][]string, activeModels []*types.ModelInfo, round int, numRounds int, questionTS int64, reqMetrics *metrics.RequestMetrics) <-chan callResult {
 	results := make(chan callResult, len(activeModels))
 
 	for _, mi := range activeModels {
@@ -424,9 +461,17 @@ func parallelCall(ctx context.Context, requestID, question string, replies map[s
 	return results
 }
 
-func rankModels(ctx context.Context, requestID, question string, replies map[string]string, activeModels []*types.ModelInfo, questionTS int64, reqMetrics *metrics.RequestMetrics) string {
+func rankModels(ctx context.Context, requestID, question string, replies map[string]types.Reply, activeModels []*types.ModelInfo, questionTS int64, reqMetrics *metrics.RequestMetrics) string {
 	logger := appLogger.With("request_id", requestID)
 	logger.Info("starting ranking phase", slog.Int("num_models", len(activeModels)))
+	
+	// Remap replies to use full model names as keys (needed for ranking prompt)
+	repliesByName := make(map[string]types.Reply)
+	for _, mi := range activeModels {
+		if reply, ok := replies[mi.ID]; ok {
+			repliesByName[mi.Name] = reply
+		}
+	}
 	
 	// Collect rankings from all models
 	rankings := make(map[string][]string)
@@ -449,7 +494,7 @@ func rankModels(ctx context.Context, requestID, question string, replies map[str
 			}
 
 			// Create ranking prompt
-			prompt := shared.FormatRankingPrompt(mi.Name, question, otherAgents, replies)
+			prompt := shared.FormatRankingPrompt(mi.Name, question, otherAgents, repliesByName)
 
 			// Create timeout context
 			timeout := mi.RequestTimeout
@@ -467,7 +512,7 @@ func rankModels(ctx context.Context, requestID, question string, replies map[str
 				OtherAgents: otherAgents,
 			}
 			
-			result, err := model.Prompt(callCtx, prompt, meta, make(map[string]string), make(map[string][]string))
+			result, err := model.Prompt(callCtx, prompt, meta, make(map[string]types.Reply), make(map[string][]string))
 			
 			duration := time.Since(startTime)
 			
@@ -637,13 +682,13 @@ func loadKeys() {
 	envVars := map[string]string{
 		"grok-4-fast":      "GROK_KEY",
 		"gpt-5-mini":       "GPT_KEY",
-		"claude-3.5-haiku": "CLAUDE_KEY",
+		"claude-3-5-haiku-20241022": "CLAUDE_KEY",
 		"gemini-2.5-flash": "GEMINI_KEY",
 	}
 	jsonKeys := map[string]string{
 		"grok-4-fast":      "grok",
 		"gpt-5-mini":       "gpt",
-		"claude-3.5-haiku": "claude",
+		"claude-3-5-haiku-20241022": "claude",
 		"gemini-2.5-flash": "gemini",
 	}
 	// Env

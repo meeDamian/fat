@@ -51,5 +51,5 @@ type Meta struct {
 
 // Model interface for all AI providers
 type Model interface {
-	Prompt(ctx context.Context, question string, meta Meta, replies map[string]string, discussion map[string][]string) (ModelResult, error)
+	Prompt(ctx context.Context, question string, meta Meta, replies map[string]Reply, discussion map[string][]string) (ModelResult, error)
 }

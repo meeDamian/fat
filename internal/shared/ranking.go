@@ -4,46 +4,46 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	
+	"github.com/meedamian/fat/internal/types"
 )
 
 // FormatRankingPrompt creates a standardized ranking prompt
-func FormatRankingPrompt(agentName, question string, otherAgents []string, finalAnswers map[string]string) string {
+func FormatRankingPrompt(agentName, question string, otherAgents []string, finalAnswers map[string]types.Reply) string {
 	var b strings.Builder
 
-	b.WriteString(fmt.Sprintf("You are %s. Your task is to objectively rank the quality of all answers (including your own) for the question below.\n\n", agentName))
+	b.WriteString(fmt.Sprintf("You are %s. Rank all answers objectively based on quality.\n\n", agentName))
+	
 	b.WriteString("# QUESTION\n\n")
 	b.WriteString(question)
 	b.WriteString("\n\n")
-	b.WriteString("# FINAL ANSWERS FROM ALL AGENTS\n\n")
+	
+	b.WriteString("# ANSWERS\n\n")
 
 	// Sort agent names for consistent ordering
 	allAgents := append([]string{agentName}, otherAgents...)
 	sort.Strings(allAgents)
 
 	for _, agent := range allAgents {
-		if answer, ok := finalAnswers[agent]; ok {
-			b.WriteString(fmt.Sprintf("## %s\n%s\n\n", agent, answer))
+		if reply, ok := finalAnswers[agent]; ok {
+			b.WriteString(fmt.Sprintf("## %s\n\n%s\n\n", agent, reply.Answer))
 		}
 	}
 
-	b.WriteString("# RANKING CRITERIA\n\n")
-	b.WriteString("Rank ALL agents from best to worst based on these weighted criteria:\n\n")
-	b.WriteString("1. **Factual Accuracy** (40%) - Correctness and precision of information\n")
-	b.WriteString("2. **Completeness** (30%) - Addresses all aspects of the question\n")
-	b.WriteString("3. **Clarity and Coherence** (20%) - Well-structured and easy to understand\n")
-	b.WriteString("4. **Integration of Discussion** (10%) - Incorporated feedback from collaboration\n\n")
-	b.WriteString("IMPORTANT:\n")
-	b.WriteString("- Be objective - you may rank yourself anywhere based on these criteria\n")
-	b.WriteString("- Consider the full collaboration, not just the final answer\n")
-	b.WriteString("- Rank based on merit, not agent identity\n\n")
+	b.WriteString("# YOUR TASK\n\n")
+	b.WriteString("Rank the above answers from best to worst based on:\n\n")
+	b.WriteString("- **Accuracy** (40%): Correctness and precision\n")
+	b.WriteString("- **Completeness** (30%): Addresses all aspects of the question\n")
+	b.WriteString("- **Clarity** (20%): Well-structured and understandable\n")
+	b.WriteString("- **Insight** (10%): Depth and originality\n\n")
+	b.WriteString("Be objective. You may rank yourself anywhere. Judge on merit, not identity.\n\n")
 	
-	b.WriteString("# OUTPUT FORMAT\n\n")
-	b.WriteString("Output ONLY the ranking in this exact format (one agent name per line, best first):\n\n")
 	b.WriteString("# RANKING\n\n")
+	b.WriteString("Output ONLY agent names, one per line, best to worst:\n\n")
 	for _, agent := range allAgents {
 		b.WriteString(fmt.Sprintf("%s\n", agent))
 	}
-	b.WriteString("\n(Reorder the above names from best to worst)")
+	b.WriteString("\n(Reorder above from best to worst)")
 
 	return b.String()
 }

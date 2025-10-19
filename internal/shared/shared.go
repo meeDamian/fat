@@ -12,7 +12,7 @@ import (
 )
 
 // FormatPrompt creates a standardized prompt for all models
-func FormatPrompt(modelName, question string, meta types.Meta, replies map[string]string, discussion map[string][]string) string {
+func FormatPrompt(modelName, question string, meta types.Meta, replies map[string]types.Reply, discussion map[string][]string) string {
 	var b strings.Builder
 
 	otherAgentsStr := "none"
@@ -23,69 +23,69 @@ func FormatPrompt(modelName, question string, meta types.Meta, replies map[strin
 	agentCount := len(meta.OtherAgents) + 1
 	b.WriteString(fmt.Sprintf("You are %s in a %d-agent collaboration. Other agents: %s. Round %d of %d.\n\n", modelName, agentCount, otherAgentsStr, meta.Round, meta.TotalRounds))
 	
-	b.WriteString("--- QUESTION ---\n\n")
+	b.WriteString("# QUESTION\n\n")
 	b.WriteString(question)
 	b.WriteString("\n\n")
 
-	// Context from previous rounds
+	// Only show context from previous rounds if not round 1
 	if meta.Round > 1 {
-		b.WriteString("--- CONTEXT FROM PREVIOUS ROUND ---\n\n")
-	}
-
-	b.WriteString("# REPLIES from previous round:\n\n")
-	if len(replies) == 0 {
-		if meta.Round == 1 {
-			b.WriteString("(None - this is round 1)\n\n")
-		} else {
+		b.WriteString("# REPLIES from previous round:\n\n")
+		if len(replies) == 0 {
 			b.WriteString("(No replies available)\n\n")
-		}
-	} else {
-		agentNames := make([]string, 0, len(replies))
-		for name := range replies {
-			agentNames = append(agentNames, name)
-		}
-		sort.Strings(agentNames)
-		for _, agent := range agentNames {
-			answer := strings.TrimSpace(replies[agent])
-			if answer == "" {
-				answer = "(No answer provided)"
-			}
-			b.WriteString(fmt.Sprintf("## %s\n%s\n\n", agent, answer))
-		}
-	}
-
-	b.WriteString("# DISCUSSION\n\n")
-	if len(discussion) == 0 {
-		if meta.Round == 1 {
-			b.WriteString("(No discussion yet)\n\n")
 		} else {
-			b.WriteString("(No discussion messages)\n\n")
-		}
-	} else {
-		targets := make([]string, 0, len(discussion))
-		for target := range discussion {
-			targets = append(targets, target)
-		}
-		sort.Strings(targets)
-		for _, target := range targets {
-			b.WriteString(fmt.Sprintf("## With %s\n", target))
-			msgs := discussion[target]
-			for _, msg := range msgs {
-				b.WriteString(fmt.Sprintf("%s\n", strings.TrimSpace(msg)))
+			agentNames := make([]string, 0, len(replies))
+			for name := range replies {
+				agentNames = append(agentNames, name)
 			}
-			b.WriteString("\n")
+			sort.Strings(agentNames)
+			for _, agent := range agentNames {
+				reply := replies[agent]
+				answer := strings.TrimSpace(reply.Answer)
+				if answer == "" {
+					answer = "(No answer provided)"
+				}
+				b.WriteString(fmt.Sprintf("## %s\n\n%s\n\n", agent, answer))
+				
+				// Include rationale if provided
+				if strings.TrimSpace(reply.Rationale) != "" {
+					b.WriteString(fmt.Sprintf("### Rationale\n\n%s\n\n", strings.TrimSpace(reply.Rationale)))
+				}
+			}
+		}
+
+		// Only show discussion messages addressed to this model
+		// discussion map is indexed by recipient (modelName is the key to look up)
+		if msgs, hasMessages := discussion[modelName]; hasMessages && len(msgs) > 0 {
+			// Check if there are any non-empty messages
+			hasContent := false
+			for _, msg := range msgs {
+				if strings.TrimSpace(msg) != "" {
+					hasContent = true
+					break
+				}
+			}
+			
+			if hasContent {
+				b.WriteString("# DISCUSSION\n\n")
+				b.WriteString("Messages from other agents:\n\n")
+				for _, msg := range msgs {
+					trimmed := strings.TrimSpace(msg)
+					if trimmed != "" {
+						b.WriteString(fmt.Sprintf("- %s\n\n", trimmed))
+					}
+				}
+			}
 		}
 	}
 
 	// Round-specific instructions
 	b.WriteString("--- YOUR TASK ---\n\n")
 	if meta.Round == 1 {
-		b.WriteString("This is round 1 - provide your initial analysis of the question.\n\n")
+		b.WriteString("This is round 1 - provide your initial answer to the question.\n\n")
 		b.WriteString("Focus on:\n")
 		b.WriteString("- Answering the question directly and completely\n")
 		b.WriteString("- Using your unique perspective and expertise\n")
 		b.WriteString("- Being concise but thorough (<300 words)\n\n")
-		b.WriteString("Note: No DISCUSSION section needed in round 1.\n\n")
 	} else {
 		b.WriteString(fmt.Sprintf("This is round %d of %d - refine your answer based on:\n", meta.Round, meta.TotalRounds))
 		b.WriteString("1. Gaps or weaknesses in other agents' answers\n")
@@ -102,10 +102,20 @@ func FormatPrompt(modelName, question string, meta types.Meta, replies map[strin
 	b.WriteString("--- RESPONSE FORMAT ---\n\n")
 	b.WriteString("Respond in this EXACT format:\n\n")
 	b.WriteString("# ANSWER\n\n")
-	b.WriteString("Your refined answer (incorporate feedback, address gaps, <300 words)\n\n")
+	if meta.Round == 1 {
+		b.WriteString("Your answer to the question (<300 words)\n")
+		b.WriteString("IMPORTANT: Include ONLY the raw answer here - no scaffolding, disclaimers, or meta-commentary.\n")
+		b.WriteString("Save explanations for the RATIONALE section.\n\n")
+	} else {
+		b.WriteString("Your refined answer (incorporate feedback, address gaps, <300 words)\n")
+		b.WriteString("IMPORTANT: Include ONLY the raw answer here - no scaffolding, disclaimers, or meta-commentary.\n")
+		b.WriteString("Save explanations for the RATIONALE section.\n\n")
+	}
 	
-	if meta.Round > 1 {
-		b.WriteString("# RATIONALE\n\n")
+	b.WriteString("# RATIONALE\n\n")
+	if meta.Round == 1 {
+		b.WriteString("(Optional) Brief explanation of your approach or reasoning\n\n")
+	} else {
 		b.WriteString("(Optional) Brief explanation of changes made (e.g., \"Added economic data from GPT's suggestion\")\n\n")
 	}
 	
@@ -182,7 +192,10 @@ func ParseResponse(content string) types.Reply {
 			case *ast.Text:
 				if currentSection != "" && node.Parent().Kind() != ast.KindHeading {
 					sectionContent.Write(node.Text(reader.Source()))
-					sectionContent.WriteString(" ")
+				}
+			case *ast.String:
+				if currentSection != "" {
+					sectionContent.Write(node.Value)
 				}
 			}
 		}

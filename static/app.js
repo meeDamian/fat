@@ -2,6 +2,16 @@ const questionInput = document.getElementById('questionInput');
 const roundsSelect = document.getElementById('roundsSelect');
 const submitBtn = document.getElementById('submitBtn');
 const statusEl = document.getElementById('status');
+const conversationBoard = document.getElementById('conversationBoard');
+const finalResult = document.getElementById('finalResult');
+
+const cardElements = {
+    grok: document.getElementById('grok'),
+    gpt: document.getElementById('gpt'),
+    claude: document.getElementById('claude'),
+    gemini: document.getElementById('gemini')
+};
+
 const outputs = {
     grok: document.getElementById('grok-output'),
     gpt: document.getElementById('gpt-output'),
@@ -21,49 +31,56 @@ function initWebSocket() {
     ws.onmessage = function(event) {
         const data = JSON.parse(event.data);
         if (data.type === 'clear') {
-            // Clear all outputs and remove winner styling
-            Object.values(outputs).forEach(output => {
-                output.textContent = 'Waiting for response...';
-                output.className = 'output';
+            Object.entries(outputs).forEach(([model, output]) => {
+                output.innerHTML = '<p class="placeholder">Responses will appear here once the collaboration begins.</p>';
+                output.className = 'model-output';
+                cardElements[model].classList.remove('winner', 'loading', 'error');
             });
-            document.querySelectorAll('.grid-item').forEach(item => {
-                item.classList.remove('winner');
-            });
-            statusEl.textContent = 'Ready';
-            submitBtn.textContent = 'Ask Models';
+            conversationBoard.classList.remove('hidden');
+            finalResult.classList.add('hidden');
+            finalResult.textContent = '';
+            statusEl.textContent = 'Ready for collaboration';
+            submitBtn.textContent = 'Launch Discussion';
         } else if (data.type === 'round_start') {
             statusEl.textContent = `Round ${data.round} of ${data.total}`;
             submitBtn.textContent = `Round ${data.round}/${data.total}`;
+            Object.values(cardElements).forEach(card => card.classList.add('loading'));
         } else if (data.type === 'response') {
             const output = outputs[data.model];
             if (output) {
-                output.className = 'output';
+                output.className = 'model-output';
+                cardElements[data.model].classList.remove('loading', 'error', 'winner');
                 output.textContent = data.response;
             }
         } else if (data.type === 'error') {
             const output = outputs[data.model];
             if (output) {
-                output.className = 'output error';
+                output.className = 'model-output error-text';
+                cardElements[data.model].classList.remove('loading');
+                cardElements[data.model].classList.add('error');
                 output.textContent = `Error: ${data.error}`;
             }
         } else if (data.type === 'loading') {
             const output = outputs[data.model];
             if (output) {
-                output.className = 'output loading';
+                output.className = 'model-output loading-text';
+                cardElements[data.model].classList.add('loading');
                 output.textContent = 'Processing...';
             }
         } else if (data.type === 'ranking_start') {
             statusEl.textContent = 'Ranking Models...';
             submitBtn.textContent = 'Ranking Models...';
         } else if (data.type === 'winner') {
-            // Highlight the winning model
-            const winnerElement = document.getElementById(data.model);
+            Object.values(cardElements).forEach(card => card.classList.remove('loading'));
+            const winnerElement = cardElements[data.model];
             if (winnerElement) {
                 winnerElement.classList.add('winner');
             }
-            statusEl.textContent = 'Complete! Winner selected.';
+            statusEl.textContent = 'Complete! Winner selected';
             submitBtn.textContent = 'Complete!';
             submitBtn.disabled = false;
+            finalResult.classList.remove('hidden');
+            finalResult.innerHTML = `<strong>Winner:</strong> ${winnerElement ? winnerElement.querySelector('.model-name').textContent : data.model}`;
         }
     };
 
@@ -81,17 +98,19 @@ submitBtn.addEventListener('click', async function() {
     const question = questionInput.value.trim();
     if (!question) return;
 
-    // Clear previous outputs and styling
-    Object.values(outputs).forEach(output => {
-        output.textContent = 'Waiting for response...';
-        output.className = 'output';
-    });
-    document.querySelectorAll('.grid-item').forEach(item => {
-        item.classList.remove('winner');
+    conversationBoard.classList.remove('hidden');
+    finalResult.classList.add('hidden');
+    finalResult.textContent = '';
+    Object.entries(outputs).forEach(([model, output]) => {
+        output.innerHTML = '<p class="placeholder">Awaiting model response...</p>';
+        output.className = 'model-output loading-text';
+        cardElements[model].classList.remove('winner', 'error');
+        cardElements[model].classList.add('loading');
     });
 
     submitBtn.disabled = true;
     submitBtn.textContent = 'Starting...';
+    statusEl.textContent = 'Connecting to models...';
 
     try {
         // Send question via WebSocket
