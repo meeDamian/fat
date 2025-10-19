@@ -211,6 +211,41 @@ body {
     transition: transform 0.3s ease, border 0.3s ease, box-shadow 0.3s ease;
 }
 
+.round-progress {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 14px;
+    justify-content: center;
+    flex-wrap: wrap;
+}
+
+.round-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    background: transparent;
+    cursor: default;
+    transition: transform 0.2s ease, background 0.2s ease, border 0.2s ease;
+    position: relative;
+}
+
+.round-dot.completed {
+    background: linear-gradient(135deg, #7c5cff, #4ff0f5);
+    border-color: transparent;
+    cursor: pointer;
+}
+
+.round-dot.completed:hover {
+    transform: scale(1.2);
+    box-shadow: 0 0 10px rgba(124, 92, 255, 0.6);
+}
+
+.round-dot.active {
+    outline: 2px solid rgba(79, 240, 245, 0.8);
+    outline-offset: 2px;
+}
+
 .model-card header {
     display: flex;
     justify-content: space-between;

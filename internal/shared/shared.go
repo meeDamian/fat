@@ -12,7 +12,7 @@ import (
 )
 
 // FormatPrompt creates a standardized prompt for all models
-func FormatPrompt(modelName, question string, meta types.Meta, replies map[string]types.Reply, discussion map[string][]string) string {
+func FormatPrompt(modelName, question string, meta types.Meta, replies map[string]types.Reply, discussion map[string]map[string][]types.DiscussionMessage) string {
 	var b strings.Builder
 
 	otherAgentsStr := "none"
@@ -53,13 +53,12 @@ func FormatPrompt(modelName, question string, meta types.Meta, replies map[strin
 			}
 		}
 
-		// Only show discussion messages addressed to this model
-		// discussion map is indexed by recipient (modelName is the key to look up)
-		if msgs, hasMessages := discussion[modelName]; hasMessages && len(msgs) > 0 {
-			// Check if there are any non-empty messages
+		// Show conversation threads with other agents
+		if threads, hasThreads := discussion[modelName]; hasThreads && len(threads) > 0 {
+			// Check if there are any threads with messages
 			hasContent := false
-			for _, msg := range msgs {
-				if strings.TrimSpace(msg) != "" {
+			for _, messages := range threads {
+				if len(messages) > 0 {
 					hasContent = true
 					break
 				}
@@ -67,11 +66,30 @@ func FormatPrompt(modelName, question string, meta types.Meta, replies map[strin
 			
 			if hasContent {
 				b.WriteString("# DISCUSSION\n\n")
-				b.WriteString("Messages from other agents:\n\n")
-				for _, msg := range msgs {
-					trimmed := strings.TrimSpace(msg)
-					if trimmed != "" {
-						b.WriteString(fmt.Sprintf("- %s\n\n", trimmed))
+				
+				// Sort agent names for consistent ordering
+				agents := make([]string, 0, len(threads))
+				for agent := range threads {
+					if len(threads[agent]) > 0 {
+						agents = append(agents, agent)
+					}
+				}
+				sort.Strings(agents)
+				
+				for _, agent := range agents {
+					messages := threads[agent]
+					if len(messages) == 0 {
+						continue
+					}
+					
+					b.WriteString(fmt.Sprintf("## With %s\n\n", agent))
+					
+					// Show conversation thread in chronological order
+					for _, msg := range messages {
+						trimmed := strings.TrimSpace(msg.Message)
+						if trimmed != "" {
+							b.WriteString(fmt.Sprintf("%s: %s\n\n", msg.From, trimmed))
+						}
 					}
 				}
 			}

@@ -26,6 +26,13 @@ type ModelInfo struct {
 	RequestTimeout time.Duration
 }
 
+// DiscussionMessage represents a single message in a conversation thread
+type DiscussionMessage struct {
+	From    string // Model ID of sender
+	Message string
+	Round   int
+}
+
 // Reply represents a model's response
 type Reply struct {
 	Answer     string
@@ -51,5 +58,5 @@ type Meta struct {
 
 // Model interface for all AI providers
 type Model interface {
-	Prompt(ctx context.Context, question string, meta Meta, replies map[string]Reply, discussion map[string][]string) (ModelResult, error)
+	Prompt(ctx context.Context, question string, meta Meta, replies map[string]Reply, discussion map[string]map[string][]DiscussionMessage) (ModelResult, error)
 }

@@ -275,7 +275,8 @@ func processQuestion(ctx context.Context, question string, numRounds int, active
 
 	// Initialize conversation state
 	replies := make(map[string]types.Reply) // agent -> latest reply with answer and rationale
-	discussion := make(map[string][]string) // toAgent -> list of messages addressed to them
+	// discussion[agentA][agentB] = conversation thread between A and B
+	discussion := make(map[string]map[string][]types.DiscussionMessage)
 
 	for round := 0; round < numRounds; round++ {
 		logger.Info("starting round", slog.Int("round", round+1))
@@ -309,8 +310,8 @@ func processQuestion(ctx context.Context, question string, numRounds int, active
 				// Update conversation state
 				replies[result.modelID] = result.reply
 				
-				// Store discussion messages indexed by recipient
-				// Normalize agent names to model IDs for consistent lookup
+				// Store discussion messages as conversation threads
+				// Each message creates a bidirectional thread between sender and recipient
 				for targetAgent, message := range result.reply.Discussion {
 					// Normalize target agent name to model ID
 					targetID := normalizeAgentName(targetAgent, activeModels)
@@ -321,10 +322,22 @@ func processQuestion(ctx context.Context, question string, numRounds int, active
 						continue
 					}
 					
-					if _, exists := discussion[targetID]; !exists {
-						discussion[targetID] = []string{}
+					// Initialize discussion maps if needed
+					if _, exists := discussion[result.modelID]; !exists {
+						discussion[result.modelID] = make(map[string][]types.DiscussionMessage)
 					}
-					discussion[targetID] = append(discussion[targetID], message)
+					if _, exists := discussion[targetID]; !exists {
+						discussion[targetID] = make(map[string][]types.DiscussionMessage)
+					}
+					
+					// Add message to both sender's and recipient's conversation threads
+					msg := types.DiscussionMessage{
+						From:    result.modelID,
+						Message: message,
+						Round:   round + 1,
+					}
+					discussion[result.modelID][targetID] = append(discussion[result.modelID][targetID], msg)
+					discussion[targetID][result.modelID] = append(discussion[targetID][result.modelID], msg)
 				}
 
 				broadcastMessage(map[string]interface{}{
@@ -371,7 +384,7 @@ type callResult struct {
 	err     error
 }
 
-func parallelCall(ctx context.Context, requestID, question string, replies map[string]types.Reply, discussion map[string][]string, activeModels []*types.ModelInfo, round int, numRounds int, questionTS int64, reqMetrics *metrics.RequestMetrics) <-chan callResult {
+func parallelCall(ctx context.Context, requestID, question string, replies map[string]types.Reply, discussion map[string]map[string][]types.DiscussionMessage, activeModels []*types.ModelInfo, round int, numRounds int, questionTS int64, reqMetrics *metrics.RequestMetrics) <-chan callResult {
 	results := make(chan callResult, len(activeModels))
 
 	for _, mi := range activeModels {
@@ -512,7 +525,7 @@ func rankModels(ctx context.Context, requestID, question string, replies map[str
 				OtherAgents: otherAgents,
 			}
 			
-			result, err := model.Prompt(callCtx, prompt, meta, make(map[string]types.Reply), make(map[string][]string))
+			result, err := model.Prompt(callCtx, prompt, meta, make(map[string]types.Reply), make(map[string]map[string][]types.DiscussionMessage))
 			
 			duration := time.Since(startTime)
 			

@@ -20,6 +20,111 @@ const outputs = {
 };
 
 let ws;
+const modelState = {
+    grok: createEmptyModelState(),
+    gpt: createEmptyModelState(),
+    claude: createEmptyModelState(),
+    gemini: createEmptyModelState()
+};
+let lastTotalRounds = parseInt(roundsSelect.value, 10) || 1;
+
+function createEmptyModelState() {
+    return {
+        totalRounds: lastTotalRounds,
+        responses: [],
+        dots: [],
+        displayedRound: null
+    };
+}
+
+function resetModelStates(totalRounds) {
+    lastTotalRounds = totalRounds;
+    Object.keys(modelState).forEach(model => {
+        const state = modelState[model];
+        state.totalRounds = totalRounds;
+        state.responses = new Array(totalRounds).fill(null);
+        state.displayedRound = null;
+        renderRoundDots(model);
+    });
+}
+
+function ensureRounds(totalRounds) {
+    if (totalRounds !== lastTotalRounds) {
+        resetModelStates(totalRounds);
+    }
+}
+
+function renderRoundDots(model) {
+    const container = document.querySelector(`.round-progress[data-model="${model}"]`);
+    if (!container) return;
+
+    container.innerHTML = '';
+    const state = modelState[model];
+    state.dots = [];
+
+    for (let i = 0; i < state.totalRounds; i++) {
+        const dot = document.createElement('span');
+        dot.classList.add('round-dot');
+        dot.dataset.round = i + 1;
+        dot.addEventListener('click', () => {
+            if (!dot.classList.contains('completed')) return;
+            showRoundResponse(model, i + 1);
+            setActiveDot(model, i + 1);
+        });
+        container.appendChild(dot);
+        state.dots.push(dot);
+    }
+}
+
+function markRoundCompleted(model, round, responseText) {
+    const state = modelState[model];
+    if (!state) return;
+    state.responses[round - 1] = responseText;
+    const dot = state.dots[round - 1];
+    if (dot) {
+        dot.classList.add('completed');
+    }
+    state.displayedRound = round;
+}
+
+function setActiveDot(model, round) {
+    const state = modelState[model];
+    if (!state) return;
+    state.dots.forEach(dot => dot.classList.remove('active'));
+    const targetDot = state.dots[round - 1];
+    if (targetDot) {
+        targetDot.classList.add('active');
+    }
+    state.displayedRound = round;
+}
+
+function highlightCurrentRound(model, round) {
+    const state = modelState[model];
+    if (!state) return;
+    setActiveDot(model, round);
+}
+
+function showRoundResponse(model, round) {
+    const state = modelState[model];
+    if (!state) return;
+    const response = state.responses[round - 1];
+    if (response !== null && response !== undefined) {
+        outputs[model].className = 'model-output';
+        outputs[model].textContent = response;
+    }
+}
+
+function showLatestResponse(model) {
+    const state = modelState[model];
+    if (!state) return;
+    for (let i = state.totalRounds - 1; i >= 0; i--) {
+        if (state.responses[i]) {
+            showRoundResponse(model, i + 1);
+            setActiveDot(model, i + 1);
+            return;
+        }
+    }
+}
 
 function initWebSocket() {
     ws = new WebSocket('ws://localhost:4444/ws');
@@ -31,6 +136,8 @@ function initWebSocket() {
     ws.onmessage = function(event) {
         const data = JSON.parse(event.data);
         if (data.type === 'clear') {
+            const total = parseInt(roundsSelect.value, 10) || 1;
+            resetModelStates(total);
             Object.entries(outputs).forEach(([model, output]) => {
                 output.innerHTML = '<p class="placeholder">Responses will appear here once the collaboration begins.</p>';
                 output.className = 'model-output';
@@ -45,12 +152,16 @@ function initWebSocket() {
             statusEl.textContent = `Round ${data.round} of ${data.total}`;
             submitBtn.textContent = `Round ${data.round}/${data.total}`;
             Object.values(cardElements).forEach(card => card.classList.add('loading'));
+            ensureRounds(data.total);
+            Object.keys(modelState).forEach(model => highlightCurrentRound(model, data.round));
         } else if (data.type === 'response') {
             const output = outputs[data.model];
             if (output) {
                 output.className = 'model-output';
                 cardElements[data.model].classList.remove('loading', 'error', 'winner');
                 output.textContent = data.response;
+                markRoundCompleted(data.model, data.round, data.response);
+                setActiveDot(data.model, data.round);
             }
         } else if (data.type === 'error') {
             const output = outputs[data.model];
@@ -106,6 +217,7 @@ submitBtn.addEventListener('click', async function() {
         output.className = 'model-output loading-text';
         cardElements[model].classList.remove('winner', 'error');
         cardElements[model].classList.add('loading');
+        renderRoundDots(model);
     });
 
     submitBtn.disabled = true;

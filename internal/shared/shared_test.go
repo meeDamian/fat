@@ -20,8 +20,10 @@ func TestFormatPrompt(t *testing.T) {
 		"claude": {Answer: "Answer from Claude"},
 	}
 
-	discussion := map[string][]string{
-		"grok": {"To GPT: Consider X", "To Claude: Think about Y"},
+	discussion := map[string]map[string][]types.DiscussionMessage{
+		"Grok": {
+			"GPT": {{From: "Claude", Message: "Consider X", Round: 1}},
+		},
 	}
 
 	prompt := FormatPrompt("Grok", "What is AI?", meta, replies, discussion)
@@ -102,7 +104,7 @@ func TestFormatPromptRound1(t *testing.T) {
 		OtherAgents: []string{"GPT", "Claude"},
 	}
 
-	prompt := FormatPrompt("Grok", "Test question", meta, map[string]types.Reply{}, map[string][]string{})
+	prompt := FormatPrompt("Grok", "Test question", meta, map[string]types.Reply{}, map[string]map[string][]types.DiscussionMessage{})
 
 	// Round 1 should NOT have replies or discussion sections
 	if strings.Contains(prompt, "# REPLIES from previous round:") {
