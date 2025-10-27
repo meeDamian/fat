@@ -6,9 +6,6 @@ import (
 	"strings"
 
 	"github.com/meedamian/fat/internal/types"
-	"github.com/yuin/goldmark"
-	"github.com/yuin/goldmark/ast"
-	"github.com/yuin/goldmark/text"
 )
 
 // FormatPrompt creates a standardized prompt for all models
@@ -157,91 +154,69 @@ func FormatPrompt(modelID, modelName, question string, meta types.Meta, replies 
 }
 
 // ParseResponse parses markdown response into Reply struct
+// Preserves original formatting including list markers, indentation, and blank lines
 func ParseResponse(content string) types.Reply {
 	reply := types.Reply{
 		Discussion: make(map[string]string),
 		RawContent: content,
 	}
 
-	// Parse markdown
-	md := goldmark.New()
-	reader := text.NewReader([]byte(content))
-	doc := md.Parser().Parse(reader)
-
+	lines := strings.Split(content, "\n")
 	var currentSection string
-	var sectionContent strings.Builder
 	var currentAgent string
+	var sectionLines []string
 
-	ast.Walk(doc, func(node ast.Node, entering bool) (ast.WalkStatus, error) {
-		if entering {
-			switch node := node.(type) {
-			case *ast.Heading:
-				// Save previous section
-				if currentSection != "" && sectionContent.Len() > 0 {
-					saveSection(&reply, currentSection, strings.TrimSpace(sectionContent.String()), currentAgent)
-					sectionContent.Reset()
-					currentAgent = ""
-				}
+	for i := 0; i < len(lines); i++ {
+		line := lines[i]
+		trimmed := strings.TrimSpace(line)
 
-				if node.Level == 1 { // # headers
-					// Extract heading text from child nodes
-					var textContent string
-					for child := node.FirstChild(); child != nil; child = child.NextSibling() {
-						if text, ok := child.(*ast.Text); ok {
-							textContent += string(text.Segment.Value(reader.Source()))
-						}
-					}
-					switch textContent {
-					case "ANSWER":
-						currentSection = "answer"
-					case "RATIONALE":
-						currentSection = "rationale"
-					case "DISCUSSION":
-						currentSection = "discussion"
-					}
-					// Skip adding heading text to content
-					return ast.WalkSkipChildren, nil
-				} else if node.Level == 2 && currentSection == "discussion" { // ## headers
-					// Save previous discussion entry if exists
-					if currentAgent != "" && sectionContent.Len() > 0 {
-						saveSection(&reply, currentSection, strings.TrimSpace(sectionContent.String()), currentAgent)
-						sectionContent.Reset()
-					}
-
-					// Extract heading text from child nodes
-					var textContent string
-					for child := node.FirstChild(); child != nil; child = child.NextSibling() {
-						if text, ok := child.(*ast.Text); ok {
-							textContent += string(text.Segment.Value(reader.Source()))
-						}
-					}
-					if agent, found := strings.CutPrefix(textContent, "With "); found {
-						currentAgent = agent
-					}
-					// Skip adding heading text to content
-					return ast.WalkSkipChildren, nil
-				}
-			case *ast.Text:
-				if currentSection != "" && node.Parent().Kind() != ast.KindHeading {
-					textValue := node.Segment.Value(reader.Source())
-					sectionContent.Write(textValue)
-					// Preserve line breaks: check if this Text node ends with a line break
-					if node.SoftLineBreak() || node.HardLineBreak() {
-						sectionContent.WriteString("\n")
-					}
-				}
-			case *ast.String:
-				if currentSection != "" {
-					sectionContent.Write(node.Value)
-				}
+		// Check for # ANSWER, # RATIONALE, # DISCUSSION headings
+		if strings.HasPrefix(trimmed, "# ") {
+			// Save previous section
+			if currentSection != "" {
+				saveSection(&reply, currentSection, strings.Join(sectionLines, "\n"), currentAgent)
+				sectionLines = nil
+				currentAgent = ""
 			}
+
+			heading := strings.TrimSpace(trimmed[2:])
+			switch heading {
+			case "ANSWER":
+				currentSection = "answer"
+			case "RATIONALE":
+				currentSection = "rationale"
+			case "DISCUSSION":
+				currentSection = "discussion"
+			default:
+				currentSection = ""
+			}
+			continue
 		}
-		return ast.WalkContinue, nil
-	})
+
+		// Check for ## With AgentName in discussion section
+		if currentSection == "discussion" && strings.HasPrefix(trimmed, "## ") {
+			// Save previous discussion entry
+			if currentAgent != "" {
+				saveSection(&reply, currentSection, strings.Join(sectionLines, "\n"), currentAgent)
+				sectionLines = nil
+			}
+
+			heading := strings.TrimSpace(trimmed[3:])
+			if agent, found := strings.CutPrefix(heading, "With "); found {
+				currentAgent = agent
+			}
+			continue
+		}
+
+		// Accumulate content for current section
+		if currentSection != "" {
+			sectionLines = append(sectionLines, line)
+		}
+	}
 
 	// Save final section
-	if currentSection != "" && sectionContent.Len() > 0 {
-		saveSection(&reply, currentSection, strings.TrimSpace(sectionContent.String()), currentAgent)
+	if currentSection != "" {
+		saveSection(&reply, currentSection, strings.Join(sectionLines, "\n"), currentAgent)
 	}
 
 	return reply

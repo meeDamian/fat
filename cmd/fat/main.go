@@ -177,14 +177,16 @@ func handleWebSocket(c *gin.Context) {
 	clients[conn] = true
 	clientsMutex.Unlock()
 
+	// Create cancellable context that will be cancelled when connection closes
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel() // Cancel context when WebSocket closes
+
 	defer func() {
 		clientsMutex.Lock()
 		delete(clients, conn)
 		clientsMutex.Unlock()
 		conn.Close()
 	}()
-
-	ctx := context.Background()
 
 	// Filter models - include all by default for web version
 	activeModels := []*types.ModelInfo{}
@@ -266,6 +268,16 @@ func processQuestion(ctx context.Context, question string, numRounds int, active
 		slog.String("question", question),
 		slog.Int("rounds", numRounds),
 		slog.Int("models", len(activeModels)))
+
+	// Check for cancellation and create marker file if cancelled
+	defer func() {
+		if ctx.Err() == context.Canceled {
+			logger.Info("request cancelled, creating marker file")
+			if err := utils.LogCancellation(questionTS); err != nil {
+				logger.Warn("failed to create cancellation marker", slog.Any("error", err))
+			}
+		}
+	}()
 
 	// Clear previous responses and send round start
 	broadcastMessage(map[string]any{

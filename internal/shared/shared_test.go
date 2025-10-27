@@ -132,3 +132,467 @@ func TestFormatPromptRound1(t *testing.T) {
 		t.Error("Round 1 should not have DISCUSSION format section")
 	}
 }
+
+func TestParseResponse_NumberedList(t *testing.T) {
+	tests := []struct {
+		name     string
+		content  string
+		expected string
+	}{
+		{
+			name: "numbered list with periods",
+			content: `# ANSWER
+
+1. Ukraine
+2. Philippines
+3. Colombia
+
+# RATIONALE
+
+Test rationale.`,
+			expected: "1. Ukraine\n2. Philippines\n3. Colombia",
+		},
+		{
+			name: "numbered list with parentheses",
+			content: `# ANSWER
+
+1) First item
+2) Second item
+3) Third item
+
+# RATIONALE
+
+Test.`,
+			expected: "1) First item\n2) Second item\n3) Third item",
+		},
+		{
+			name: "numbered list with trailing spaces (hard breaks)",
+			content: `# ANSWER
+
+1. Ukraine  
+2. Philippines  
+3. Colombia  
+
+# RATIONALE
+
+Test.`,
+			expected: "1. Ukraine  \n2. Philippines  \n3. Colombia",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			reply := ParseResponse(tt.content)
+			if reply.Answer != tt.expected {
+				t.Errorf("Expected answer %q, got %q", tt.expected, reply.Answer)
+			}
+		})
+	}
+}
+
+func TestParseResponse_BulletedLists(t *testing.T) {
+	tests := []struct {
+		name     string
+		content  string
+		expected string
+	}{
+		{
+			name: "hyphen bullets",
+			content: `# ANSWER
+
+- Philippines
+- Colombia
+- Brazil
+
+# RATIONALE
+
+Test.`,
+			expected: "- Philippines\n- Colombia\n- Brazil",
+		},
+		{
+			name: "asterisk bullets",
+			content: `# ANSWER
+
+* Philippines
+* Ukraine
+* Colombia
+
+# RATIONALE
+
+Test.`,
+			expected: "* Philippines\n* Ukraine\n* Colombia",
+		},
+		{
+			name: "unicode bullets",
+			content: `# ANSWER
+
+• First
+• Second
+• Third
+
+# RATIONALE
+
+Test.`,
+			expected: "• First\n• Second\n• Third",
+		},
+		{
+			name: "mixed bullet styles",
+			content: `# ANSWER
+
+- Item one
+* Item two
+- Item three
+
+# RATIONALE
+
+Test.`,
+			expected: "- Item one\n* Item two\n- Item three",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			reply := ParseResponse(tt.content)
+			if reply.Answer != tt.expected {
+				t.Errorf("Expected answer %q, got %q", tt.expected, reply.Answer)
+			}
+		})
+	}
+}
+
+func TestParseResponse_PlainLines(t *testing.T) {
+	tests := []struct {
+		name     string
+		content  string
+		expected string
+	}{
+		{
+			name: "plain multiline text",
+			content: `# ANSWER
+
+Philippines
+Ukraine
+Russia
+
+# RATIONALE
+
+Test.`,
+			expected: "Philippines\nUkraine\nRussia",
+		},
+		{
+			name: "plain text with blank lines",
+			content: `# ANSWER
+
+First paragraph.
+
+Second paragraph.
+
+# RATIONALE
+
+Test.`,
+			expected: "First paragraph.\n\nSecond paragraph.",
+		},
+		{
+			name: "single line answer",
+			content: `# ANSWER
+
+Just one line
+
+# RATIONALE
+
+Test.`,
+			expected: "Just one line",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			reply := ParseResponse(tt.content)
+			if reply.Answer != tt.expected {
+				t.Errorf("Expected answer %q, got %q", tt.expected, reply.Answer)
+			}
+		})
+	}
+}
+
+func TestParseResponse_MissingAnswer(t *testing.T) {
+	tests := []struct {
+		name     string
+		content  string
+		expected string
+	}{
+		{
+			name: "no answer section",
+			content: `# RATIONALE
+
+Just rationale here.`,
+			expected: "",
+		},
+		{
+			name: "empty answer section",
+			content: `# ANSWER
+
+# RATIONALE
+
+Test.`,
+			expected: "",
+		},
+		{
+			name: "refusal to answer",
+			content: `I do not feel comfortable providing recommendations about obtaining a wife from specific countries.`,
+			expected: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			reply := ParseResponse(tt.content)
+			if reply.Answer != tt.expected {
+				t.Errorf("Expected answer %q, got %q", tt.expected, reply.Answer)
+			}
+		})
+	}
+}
+
+func TestParseResponse_ComplexFormatting(t *testing.T) {
+	tests := []struct {
+		name     string
+		content  string
+		wantAnswer string
+		wantRationale string
+	}{
+		{
+			name: "nested lists and sub-bullets",
+			content: `# ANSWER
+
+1. First step
+- Sub-item A
+- Sub-item B
+
+2. Second step
+- Another sub-item
+
+# RATIONALE
+
+Complex structure.`,
+			wantAnswer: "1. First step\n- Sub-item A\n- Sub-item B\n\n2. Second step\n- Another sub-item",
+			wantRationale: "Complex structure.",
+		},
+		{
+			name: "inline code in answer",
+			content: `# ANSWER
+
+Use ` + "`activated charcoal`" + ` immediately.
+
+# RATIONALE
+
+Test.`,
+			wantAnswer: "Use `activated charcoal` immediately.",
+			wantRationale: "Test.",
+		},
+		{
+			name: "multiline with indentation",
+			content: `# ANSWER
+
+Main point:
+  - Indented item
+  - Another indented
+
+# RATIONALE
+
+Test.`,
+			wantAnswer: "Main point:\n  - Indented item\n  - Another indented",
+			wantRationale: "Test.",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			reply := ParseResponse(tt.content)
+			if reply.Answer != tt.wantAnswer {
+				t.Errorf("Expected answer %q, got %q", tt.wantAnswer, reply.Answer)
+			}
+			if reply.Rationale != tt.wantRationale {
+				t.Errorf("Expected rationale %q, got %q", tt.wantRationale, reply.Rationale)
+			}
+		})
+	}
+}
+
+func TestParseResponse_Discussion(t *testing.T) {
+	tests := []struct {
+		name     string
+		content  string
+		wantDiscussion map[string]string
+	}{
+		{
+			name: "single discussion entry",
+			content: `# ANSWER
+
+Test answer
+
+# DISCUSSION
+
+## With GPT
+
+Your analysis is thorough.`,
+			wantDiscussion: map[string]string{
+				"GPT": "Your analysis is thorough.",
+			},
+		},
+		{
+			name: "multiple discussion entries",
+			content: `# ANSWER
+
+Test answer
+
+# DISCUSSION
+
+## With GPT
+
+Consider adding more data.
+
+## With Claude
+
+Good approach overall.`,
+			wantDiscussion: map[string]string{
+				"GPT": "Consider adding more data.",
+				"Claude": "Good approach overall.",
+			},
+		},
+		{
+			name: "discussion with multiline messages",
+			content: `# ANSWER
+
+Test answer
+
+# DISCUSSION
+
+## With GPT
+
+First line.
+Second line.
+Third line.`,
+			wantDiscussion: map[string]string{
+				"GPT": "First line.\nSecond line.\nThird line.",
+			},
+		},
+		{
+			name: "no discussion section",
+			content: `# ANSWER
+
+Test answer
+
+# RATIONALE
+
+Test.`,
+			wantDiscussion: map[string]string{},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			reply := ParseResponse(tt.content)
+			if len(reply.Discussion) != len(tt.wantDiscussion) {
+				t.Errorf("Expected %d discussion entries, got %d", len(tt.wantDiscussion), len(reply.Discussion))
+			}
+			for agent, expected := range tt.wantDiscussion {
+				if reply.Discussion[agent] != expected {
+					t.Errorf("For agent %s, expected %q, got %q", agent, expected, reply.Discussion[agent])
+				}
+			}
+		})
+	}
+}
+
+func TestParseResponse_RawContentPreserved(t *testing.T) {
+	content := `# ANSWER
+
+Test answer
+
+# RATIONALE
+
+Test rationale`
+
+	reply := ParseResponse(content)
+	
+	if reply.RawContent != content {
+		t.Error("RawContent should be preserved exactly")
+	}
+}
+
+func TestParseResponse_EdgeCases(t *testing.T) {
+	tests := []struct {
+		name    string
+		content string
+		check   func(*testing.T, types.Reply)
+	}{
+		{
+			name:    "empty string",
+			content: "",
+			check: func(t *testing.T, r types.Reply) {
+				if r.Answer != "" || r.Rationale != "" || len(r.Discussion) != 0 {
+					t.Error("Empty input should produce empty reply")
+				}
+			},
+		},
+		{
+			name:    "only whitespace",
+			content: "   \n\n   \n",
+			check: func(t *testing.T, r types.Reply) {
+				if r.Answer != "" {
+					t.Error("Whitespace-only input should produce empty answer")
+				}
+			},
+		},
+		{
+			name: "headings without content",
+			content: `# ANSWER
+# RATIONALE
+# DISCUSSION`,
+			check: func(t *testing.T, r types.Reply) {
+				if r.Answer != "" || r.Rationale != "" {
+					t.Error("Headings without content should produce empty fields")
+				}
+			},
+		},
+		{
+			name: "case sensitivity of headings",
+			content: `# answer
+
+Test
+
+# RATIONALE
+
+Test`,
+			check: func(t *testing.T, r types.Reply) {
+				// Lowercase 'answer' should not be recognized
+				if r.Answer != "" {
+					t.Error("Lowercase heading should not be recognized")
+				}
+			},
+		},
+		{
+			name: "extra whitespace in headings",
+			content: `#  ANSWER  
+
+Test
+
+# RATIONALE
+
+Test`,
+			check: func(t *testing.T, r types.Reply) {
+				if r.Answer != "Test" {
+					t.Errorf("Extra whitespace in heading should be handled, got %q", r.Answer)
+				}
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			reply := ParseResponse(tt.content)
+			tt.check(t, reply)
+		})
+	}
+}

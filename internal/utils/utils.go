@@ -59,6 +59,37 @@ func Log(questionTS int64, logType, modelName, prompt, response string) error {
 	return nil
 }
 
+// LogCancellation creates an empty marker file to indicate a cancelled request
+func LogCancellation(questionTS int64) error {
+	// Create timestamp-specific directory
+	tsDir := fmt.Sprintf("%s/%d", answersDir, questionTS)
+	if err := os.MkdirAll(tsDir, 0755); err != nil {
+		slog.Error("failed to create timestamp directory", 
+			slog.String("dir", tsDir),
+			slog.Any("error", err))
+		return fmt.Errorf("failed to create timestamp directory: %w", err)
+	}
+
+	diff := time.Now().Unix() - questionTS
+	diffStr := fmt.Sprintf("%04d", diff)
+	filename := fmt.Sprintf("%s/%s_CANCELLED", tsDir, diffStr)
+	
+	// Create empty file
+	file, err := os.Create(filename)
+	if err != nil {
+		slog.Error("failed to create cancellation marker", 
+			slog.String("filename", filename),
+			slog.Any("error", err))
+		return fmt.Errorf("failed to create cancellation marker %s: %w", filename, err)
+	}
+	file.Close()
+
+	slog.Info("created cancellation marker",
+		slog.String("filename", filename))
+	
+	return nil
+}
+
 // LoadRates loads rates from file if <7 days, else fetch defaults
 func LoadRates(ctx context.Context) map[string]types.Rate {
 	file, err := os.Open("rates.json")

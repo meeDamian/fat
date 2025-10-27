@@ -428,6 +428,13 @@ questionInput.addEventListener('keypress', function(e) {
     }
 });
 
+// Clean up WebSocket on page unload to cancel ongoing requests
+window.addEventListener('beforeunload', function() {
+    if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.close();
+    }
+});
+
 // Initialize WebSocket connection
 prefillRandomQuestion(true);
 initWebSocket();
