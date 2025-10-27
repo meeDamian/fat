@@ -22,8 +22,8 @@ func TestLoad(t *testing.T) {
 		t.Errorf("Expected default ServerAddress ':4444', got %s", cfg.ServerAddress)
 	}
 
-	if cfg.ModelRequestTimeout != 30*time.Second {
-		t.Errorf("Expected default ModelRequestTimeout 30s, got %v", cfg.ModelRequestTimeout)
+	if cfg.ModelRequestTimeout != 60*time.Second {
+		t.Errorf("Expected default ModelRequestTimeout 60s, got %v", cfg.ModelRequestTimeout)
 	}
 
 	if cfg.LogLevel != "info" {

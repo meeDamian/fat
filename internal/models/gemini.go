@@ -9,6 +9,14 @@ import (
 	"google.golang.org/genai"
 )
 
+const (
+	Gemini = "gemini"
+
+	Gemini25Flash = "gemini-2.5-flash"
+	Gemini20Flash = "gemini-2.0-flash"
+	Gemini15Pro   = "gemini-1.5-pro"
+)
+
 // GeminiModel implements the Model interface for Google Gemini
 type GeminiModel struct {
 	info   *types.ModelInfo

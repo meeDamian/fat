@@ -86,7 +86,7 @@ func main() {
 		c.File("./static/index.html")
 	})
 	r.GET("/ws", handleWebSocket)
-	
+
 	// Health check endpoint
 	r.GET("/health", func(c *gin.Context) {
 		c.JSON(200, gin.H{
@@ -94,25 +94,25 @@ func main() {
 			"uptime": time.Since(time.Now()).String(),
 		})
 	})
-	
+
 	// Stats endpoint
 	r.GET("/stats", func(c *gin.Context) {
 		ctx := c.Request.Context()
-		
+
 		// Get all model stats
 		modelStats, err := appDB.GetAllModelStats(ctx)
 		if err != nil {
 			c.JSON(500, gin.H{"error": err.Error()})
 			return
 		}
-		
+
 		// Get recent requests
 		recentRequests, err := appDB.GetRecentRequests(ctx, 10)
 		if err != nil {
 			c.JSON(500, gin.H{"error": err.Error()})
 			return
 		}
-		
+
 		c.JSON(200, gin.H{
 			"model_stats":     modelStats,
 			"recent_requests": recentRequests,
@@ -129,7 +129,7 @@ func main() {
 func normalizeAgentName(agentName string, activeModels []*types.ModelInfo) string {
 	agentName = strings.TrimSpace(agentName)
 	agentName = strings.ToLower(agentName)
-	
+
 	for _, mi := range activeModels {
 		// Check if it matches the ID
 		if strings.ToLower(mi.ID) == agentName {
@@ -147,7 +147,7 @@ func normalizeAgentName(agentName string, activeModels []*types.ModelInfo) strin
 			return mi.ID
 		}
 	}
-	
+
 	return ""
 }
 
@@ -257,13 +257,13 @@ func processQuestion(ctx context.Context, question string, numRounds int, active
 	// Generate request ID
 	requestID := uuid.New().String()
 	logger := appLogger.With("request_id", requestID)
-	
+
 	// Initialize metrics
 	reqMetrics := metrics.NewRequestMetrics(requestID, question, numRounds, len(activeModels))
 	for _, mi := range activeModels {
 		reqMetrics.AddModelMetrics(mi.ID)
 	}
-	
+
 	logger.Info("starting question processing",
 		slog.String("question", question),
 		slog.Int("rounds", numRounds),
@@ -292,7 +292,7 @@ func processQuestion(ctx context.Context, question string, numRounds int, active
 
 	for round := 0; round < numRounds; round++ {
 		logger.Info("starting round", slog.Int("round", round+1))
-		
+
 		broadcastMessage(map[string]any{
 			"type":       "round_start",
 			"round":      round + 1,
@@ -310,7 +310,7 @@ func processQuestion(ctx context.Context, question string, numRounds int, active
 					slog.String("model", result.modelID),
 					slog.Int("round", round+1),
 					slog.Any("error", result.err))
-				
+
 				broadcastMessage(map[string]any{
 					"type":       "error",
 					"model":      result.modelID,
@@ -321,19 +321,19 @@ func processQuestion(ctx context.Context, question string, numRounds int, active
 			} else {
 				// Update conversation state
 				replies[result.modelID] = result.reply
-				
+
 				// Store discussion messages as conversation threads
 				// Each message creates a bidirectional thread between sender and recipient
 				for targetAgent, message := range result.reply.Discussion {
 					// Normalize target agent name to model ID
 					targetID := normalizeAgentName(targetAgent, activeModels)
 					if targetID == "" {
-						logger.Warn("could not normalize agent name", 
+						logger.Warn("could not normalize agent name",
 							slog.String("agent", targetAgent),
 							slog.String("from", result.modelID))
 						continue
 					}
-					
+
 					// Initialize discussion maps if needed
 					if _, exists := discussion[result.modelID]; !exists {
 						discussion[result.modelID] = make(map[string][]types.DiscussionMessage)
@@ -341,7 +341,7 @@ func processQuestion(ctx context.Context, question string, numRounds int, active
 					if _, exists := discussion[targetID]; !exists {
 						discussion[targetID] = make(map[string][]types.DiscussionMessage)
 					}
-					
+
 					// Add message to both sender's and recipient's conversation threads
 					msg := types.DiscussionMessage{
 						From:    result.modelID,
@@ -371,9 +371,9 @@ func processQuestion(ctx context.Context, question string, numRounds int, active
 	})
 
 	winnerID, runnerUpID := rankModels(ctx, requestID, question, replies, activeModels, questionTS, reqMetrics)
-	
+
 	reqMetrics.Complete(winnerID)
-	
+
 	logger.Info("question processing complete", slog.Any("metrics", reqMetrics.Summary()))
 
 	// Save to database
@@ -409,7 +409,7 @@ func parallelCall(ctx context.Context, requestID, question string, replies map[s
 			}()
 
 			startTime := time.Now()
-			
+
 			// Calculate other agents (all active models except this one)
 			otherAgents := make([]string, 0, len(activeModels)-1)
 			for _, m := range activeModels {
@@ -427,18 +427,18 @@ func parallelCall(ctx context.Context, requestID, question string, replies map[s
 			// Create timeout context for this model call
 			timeout := mi.RequestTimeout
 			if timeout == 0 {
-				timeout = 30 * time.Second
+				timeout = 60 * time.Second
 			}
 			callCtx, cancel := context.WithTimeout(ctx, timeout)
 			defer cancel()
 
 			model := models.NewModel(mi)
-			
+
 			// Retry configuration
 			retryCfg := retry.DefaultConfig()
 			var result types.ModelResult
 			var err error
-			
+
 			// Execute with retry
 			retryErr := retry.Do(callCtx, retryCfg, func() error {
 				result, err = model.Prompt(callCtx, question, meta, replies, discussion)
@@ -452,16 +452,16 @@ func parallelCall(ctx context.Context, requestID, question string, replies map[s
 			duration := time.Since(startTime)
 
 			if retryErr != nil {
-				mi.Logger.Error("model prompt failed after retries", 
+				mi.Logger.Error("model prompt failed after retries",
 					slog.Int("round", round+1),
 					slog.Any("error", retryErr))
-				
+
 				// Record metrics
 				mm := reqMetrics.ModelMetrics[mi.ID]
 				if mm != nil {
 					mm.RecordRound(round+1, duration, 0, 0, retryErr)
 				}
-				
+
 				results <- callResult{modelID: mi.ID, err: fmt.Errorf("model %s: %w", mi.Name, retryErr)}
 				return
 			}
@@ -490,7 +490,7 @@ func parallelCall(ctx context.Context, requestID, question string, replies map[s
 func rankModels(ctx context.Context, requestID, question string, replies map[string]types.Reply, activeModels []*types.ModelInfo, questionTS int64, reqMetrics *metrics.RequestMetrics) (string, string) {
 	logger := appLogger.With("request_id", requestID)
 	logger.Info("starting ranking phase", slog.Int("num_models", len(activeModels)))
-	
+
 	// Remap replies to use full model names as keys (needed for ranking prompt)
 	repliesByName := make(map[string]types.Reply)
 	for _, mi := range activeModels {
@@ -498,7 +498,7 @@ func rankModels(ctx context.Context, requestID, question string, replies map[str
 			repliesByName[mi.Name] = reply
 		}
 	}
-	
+
 	// Collect rankings from all models
 	rankings := make(map[string][]string)
 	var wg sync.WaitGroup
@@ -525,7 +525,7 @@ func rankModels(ctx context.Context, requestID, question string, replies map[str
 			// Create timeout context
 			timeout := mi.RequestTimeout
 			if timeout == 0 {
-				timeout = 30 * time.Second
+				timeout = 60 * time.Second
 			}
 			callCtx, cancel := context.WithTimeout(ctx, timeout)
 			defer cancel()
@@ -537,11 +537,11 @@ func rankModels(ctx context.Context, requestID, question string, replies map[str
 				TotalRounds: 1,
 				OtherAgents: otherAgents,
 			}
-			
+
 			result, err := model.Prompt(callCtx, prompt, meta, make(map[string]types.Reply), make(map[string]map[string][]types.DiscussionMessage))
-			
+
 			duration := time.Since(startTime)
-			
+
 			if err != nil {
 				mi.Logger.Error("ranking failed", slog.Any("error", err))
 				return
@@ -549,7 +549,7 @@ func rankModels(ctx context.Context, requestID, question string, replies map[str
 
 			// Parse ranking from response
 			ranking := shared.ParseRanking(result.Reply.RawContent)
-			
+
 			// Log ranking
 			if err := utils.Log(questionTS, "rank", mi.Name, prompt, result.Reply.RawContent); err != nil {
 				mi.Logger.Warn("failed to log ranking", slog.Any("error", err))
@@ -559,6 +559,25 @@ func rankModels(ctx context.Context, requestID, question string, replies map[str
 			mm := reqMetrics.ModelMetrics[mi.ID]
 			if mm != nil {
 				mm.RecordRanking(duration, result.TokIn, result.TokOut)
+			}
+
+			// Save ranking to database
+			if len(ranking) > 0 {
+				rankedModelsJSON, _ := json.Marshal(ranking)
+				// Calculate cost: (tokens_in * rate_in + tokens_out * rate_out) / 1M
+				rankingCost := (float64(result.TokIn)*mi.Rates.In + float64(result.TokOut)*mi.Rates.Out) / 1_000_000
+				rankingRecord := db.Ranking{
+					RequestID:    requestID,
+					RankerModel:  mi.Name,
+					RankedModels: string(rankedModelsJSON),
+					DurationMs:   duration.Milliseconds(),
+					TokensIn:     int64(result.TokIn),
+					TokensOut:    int64(result.TokOut),
+					Cost:         rankingCost,
+				}
+				if err := appDB.SaveRanking(ctx, rankingRecord); err != nil {
+					mi.Logger.Warn("failed to save ranking to database", slog.Any("error", err))
+				}
 			}
 
 			mu.Lock()
@@ -580,14 +599,14 @@ func rankModels(ctx context.Context, requestID, question string, replies map[str
 	for _, mi := range activeModels {
 		allAgentNames = append(allAgentNames, mi.Name)
 	}
-	
+
 	// Log how many valid rankings we got
-	logger.Info("aggregating rankings", 
+	logger.Info("aggregating rankings",
 		slog.Int("valid_rankings", len(rankings)),
 		slog.Int("total_models", len(activeModels)))
 
 	winner, runnerUp := shared.AggregateRankings(rankings, allAgentNames)
-	
+
 	// Convert winner name back to ID
 	winnerID := ""
 	runnerUpID := ""
@@ -599,9 +618,9 @@ func rankModels(ctx context.Context, requestID, question string, replies map[str
 			runnerUpID = mi.ID
 		}
 	}
-	
+
 	if winnerID != "" {
-		logger.Info("ranking complete", 
+		logger.Info("ranking complete",
 			slog.String("winner", winner),
 			slog.String("runner_up", runnerUp))
 		return winnerID, runnerUpID
@@ -625,7 +644,7 @@ func rankModels(ctx context.Context, requestID, question string, replies map[str
 // saveToDatabase persists request metrics to SQLite
 func saveToDatabase(ctx context.Context, reqMetrics *metrics.RequestMetrics, question, winner string) error {
 	summary := reqMetrics.Summary()
-	
+
 	// Calculate total cost based on model rates
 	totalCost := 0.0
 	for modelID, mm := range reqMetrics.ModelMetrics {
@@ -637,14 +656,14 @@ func saveToDatabase(ctx context.Context, reqMetrics *metrics.RequestMetrics, que
 				break
 			}
 		}
-		
+
 		if modelInfo != nil {
 			// Calculate cost: (tokens_in * rate_in + tokens_out * rate_out) / 1M
 			cost := (float64(mm.TotalTokens.Input)*modelInfo.Rates.In + float64(mm.TotalTokens.Output)*modelInfo.Rates.Out) / 1_000_000
 			totalCost += cost
 		}
 	}
-	
+
 	// Save main request record
 	req := db.Request{
 		ID:              reqMetrics.RequestID,
@@ -658,11 +677,11 @@ func saveToDatabase(ctx context.Context, reqMetrics *metrics.RequestMetrics, que
 		TotalCost:       totalCost,
 		ErrorCount:      summary["error_count"].(int),
 	}
-	
+
 	if err := appDB.SaveRequest(ctx, req); err != nil {
 		return fmt.Errorf("failed to save request: %w", err)
 	}
-	
+
 	// Save individual model rounds
 	for modelID, mm := range reqMetrics.ModelMetrics {
 		var modelInfo *types.ModelInfo
@@ -672,14 +691,14 @@ func saveToDatabase(ctx context.Context, reqMetrics *metrics.RequestMetrics, que
 				break
 			}
 		}
-		
+
 		if modelInfo == nil {
 			continue
 		}
-		
+
 		for _, roundMetric := range mm.RoundMetrics {
 			cost := (float64(roundMetric.Tokens.Input)*modelInfo.Rates.In + float64(roundMetric.Tokens.Output)*modelInfo.Rates.Out) / 1_000_000
-			
+
 			mr := db.ModelRound{
 				RequestID:  reqMetrics.RequestID,
 				ModelID:    modelID,
@@ -691,15 +710,15 @@ func saveToDatabase(ctx context.Context, reqMetrics *metrics.RequestMetrics, que
 				Cost:       cost,
 				Error:      roundMetric.Error,
 			}
-			
+
 			if err := appDB.SaveModelRound(ctx, mr); err != nil {
-				appLogger.Warn("failed to save model round", 
+				appLogger.Warn("failed to save model round",
 					slog.String("model", modelID),
 					slog.Int("round", roundMetric.Round),
 					slog.Any("error", err))
 			}
 		}
-		
+
 		// Update model stats
 		won := (modelID == winner)
 		avgResponseTime := int64(0)
@@ -710,32 +729,32 @@ func saveToDatabase(ctx context.Context, reqMetrics *metrics.RequestMetrics, que
 			}
 			avgResponseTime = totalTime / int64(len(mm.RoundMetrics))
 		}
-		
+
 		modelCost := (float64(mm.TotalTokens.Input)*modelInfo.Rates.In + float64(mm.TotalTokens.Output)*modelInfo.Rates.Out) / 1_000_000
-		
-		if err := appDB.UpdateModelStats(ctx, modelID, modelInfo.Name, won, 
+
+		if err := appDB.UpdateModelStats(ctx, modelID, modelInfo.Name, won,
 			mm.TotalTokens.Input, mm.TotalTokens.Output, modelCost, avgResponseTime); err != nil {
 			appLogger.Warn("failed to update model stats",
 				slog.String("model", modelID),
 				slog.Any("error", err))
 		}
 	}
-	
+
 	return nil
 }
 
 func loadKeys() {
 	envVars := map[string]string{
-		"grok-4-fast":      "GROK_KEY",
-		"gpt-5-mini":       "GPT_KEY",
-		"claude-3-5-haiku-20241022": "CLAUDE_KEY",
-		"gemini-2.5-flash": "GEMINI_KEY",
+		models.Grok4Fast:     "GROK_KEY",
+		models.GPT5Mini:      "GPT_KEY",
+		models.Claude35Haiku: "CLAUDE_KEY",
+		models.Gemini25Flash: "GEMINI_KEY",
 	}
 	jsonKeys := map[string]string{
-		"grok-4-fast":      "grok",
-		"gpt-5-mini":       "gpt",
-		"claude-3-5-haiku-20241022": "claude",
-		"gemini-2.5-flash": "gemini",
+		models.Grok4Fast:     models.Grok,
+		models.GPT5Mini:      models.GPT,
+		models.Claude35Haiku: models.Claude,
+		models.Gemini25Flash: models.Gemini,
 	}
 	// Env
 	for _, mi := range models.ModelMap {

@@ -10,6 +10,14 @@ import (
 	oa "github.com/openai/openai-go/option"
 )
 
+const (
+	GPT = "gpt"
+
+	GPT5Nano = "gpt-5-nano"
+	GPT5Mini = "gpt-5-mini"
+	GPT5     = "gpt-5"
+)
+
 // OpenAIModel implements the Model interface for OpenAI
 type OpenAIModel struct {
 	info   *types.ModelInfo

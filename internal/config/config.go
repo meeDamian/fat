@@ -17,7 +17,7 @@ type Config struct {
 func Load() (Config, error) {
     cfg := Config{
         ServerAddress:       envOrDefault("FAT_SERVER_ADDR", ":4444"),
-        ModelRequestTimeout: 30 * time.Second,
+        ModelRequestTimeout: 60 * time.Second, // Increased from 30s to reduce timeout errors
         LogLevel:            envOrDefault("FAT_LOG_LEVEL", "info"),
     }
 

@@ -12,6 +12,15 @@ import (
 	"github.com/meedamian/fat/internal/types"
 )
 
+const (
+	Grok = "grok"
+
+	Grok4Fast             = "grok-4-fast"
+	Grok4FastReasoning    = "grok-4-fast-reasoning"
+	Grok4FastNonReasoning = "grok-4-fast-non-reasoning"
+	GrokCodeFast1         = "grok-code-fast-1"
+)
+
 // GrokModel implements the Model interface for Grok
 type GrokModel struct {
 	info *types.ModelInfo
