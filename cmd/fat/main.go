@@ -66,8 +66,8 @@ func main() {
 	defer appDB.Close()
 	appLogger.Info("database initialized")
 
-	activeModels := make([]*types.ModelInfo, 0, len(models.ModelMap))
-	for _, mi := range models.ModelMap {
+	activeModels := make([]*types.ModelInfo, 0, len(models.AllModels))
+	for _, mi := range models.AllModels {
 		mi.Logger = appLogger.With("model", mi.Name)
 		mi.RequestTimeout = appConfig.ModelRequestTimeout
 		activeModels = append(activeModels, mi)
@@ -190,7 +190,7 @@ func handleWebSocket(c *gin.Context) {
 
 	// Filter models - include all by default for web version
 	activeModels := []*types.ModelInfo{}
-	for _, mi := range models.ModelMap {
+	for _, mi := range models.AllModels {
 		activeModels = append(activeModels, mi)
 	}
 
@@ -650,7 +650,7 @@ func saveToDatabase(ctx context.Context, reqMetrics *metrics.RequestMetrics, que
 	for modelID, mm := range reqMetrics.ModelMetrics {
 		// Get model info for rates
 		var modelInfo *types.ModelInfo
-		for _, mi := range models.ModelMap {
+		for _, mi := range models.AllModels {
 			if mi.ID == modelID {
 				modelInfo = mi
 				break
@@ -685,7 +685,7 @@ func saveToDatabase(ctx context.Context, reqMetrics *metrics.RequestMetrics, que
 	// Save individual model rounds
 	for modelID, mm := range reqMetrics.ModelMetrics {
 		var modelInfo *types.ModelInfo
-		for _, mi := range models.ModelMap {
+		for _, mi := range models.AllModels {
 			if mi.ID == modelID {
 				modelInfo = mi
 				break
@@ -744,21 +744,18 @@ func saveToDatabase(ctx context.Context, reqMetrics *metrics.RequestMetrics, que
 }
 
 func loadKeys() {
-	envVars := map[string]string{
-		models.Grok4Fast:     "GROK_KEY",
-		models.GPT5Mini:      "GPT_KEY",
-		models.Claude35Haiku: "CLAUDE_KEY",
-		models.Gemini25Flash: "GEMINI_KEY",
+	// Map model family IDs to their environment variable names
+	// This is the only mapping needed - works with any model variant
+	familyEnvVars := map[string]string{
+		models.Grok:   "GROK_KEY",
+		models.GPT:    "GPT_KEY",
+		models.Claude: "CLAUDE_KEY",
+		models.Gemini: "GEMINI_KEY",
 	}
-	jsonKeys := map[string]string{
-		models.Grok4Fast:     models.Grok,
-		models.GPT5Mini:      models.GPT,
-		models.Claude35Haiku: models.Claude,
-		models.Gemini25Flash: models.Gemini,
-	}
-	// Env
-	for _, mi := range models.ModelMap {
-		if envVar, ok := envVars[mi.Name]; ok {
+
+	// Try environment variables first
+	for _, mi := range models.AllModels {
+		if envVar, ok := familyEnvVars[mi.ID]; ok {
 			key := os.Getenv(envVar)
 			if key != "" {
 				mi.APIKey = key
@@ -766,10 +763,14 @@ func loadKeys() {
 			}
 		}
 	}
-	// .env
+
+	// Try .env file
 	godotenv.Load()
-	for _, mi := range models.ModelMap {
-		if envVar, ok := envVars[mi.Name]; ok {
+	for _, mi := range models.AllModels {
+		if mi.APIKey != "" {
+			continue // Already loaded from env
+		}
+		if envVar, ok := familyEnvVars[mi.ID]; ok {
 			key := os.Getenv(envVar)
 			if key != "" {
 				mi.APIKey = key
@@ -777,18 +778,19 @@ func loadKeys() {
 			}
 		}
 	}
-	// keys.json
+
+	// Try keys.json (uses family ID as key)
 	if file, err := os.Open("keys.json"); err == nil {
 		defer file.Close()
 		var keys map[string]string
 		json.NewDecoder(file).Decode(&keys)
-		for _, mi := range models.ModelMap {
-			if jsonKey, ok := jsonKeys[mi.Name]; ok {
-				if key, ok := keys[jsonKey]; ok {
-					mi.APIKey = key
-				}
+		for _, mi := range models.AllModels {
+			if mi.APIKey != "" {
+				continue // Already loaded
+			}
+			if key, ok := keys[mi.ID]; ok {
+				mi.APIKey = key
 			}
 		}
 	}
-	// Check removed, done in main for active models
 }

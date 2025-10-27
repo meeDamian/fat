@@ -2,20 +2,22 @@
 
 ## Quick Model Switching
 
-All model names are now defined as constants in `internal/models/`. To change which models are used:
+All model names are defined as constants in their respective files in `internal/models/`. To change which models are used:
 
 ### 1. Edit `internal/models/models.go`
 
-Change the `ModelMap` entries to use different model variants:
+Change the `AllModels` map entries to use different model variants:
 
 ```go
-var ModelMap = map[string]*types.ModelInfo{
+var AllModels = map[string]*types.ModelInfo{
     Grok:   {ID: Grok, Name: Grok4Fast, MaxTok: 131072, BaseURL: "..."},
     GPT:    {ID: GPT, Name: GPT5Mini, MaxTok: 16384, BaseURL: "..."},
-    Claude: {ID: Claude, Name: Claude35Haiku, MaxTok: 200000, BaseURL: "..."},
+    Claude: {ID: Claude, Name: Claude45Sonnet, MaxTok: 200000, BaseURL: "..."},
     Gemini: {ID: Gemini, Name: Gemini25Flash, MaxTok: 128000, BaseURL: "..."},
 }
 ```
+
+**Current default**: Claude 4.5 Sonnet (most capable Claude model)
 
 ### 2. Available Model Constants
 
@@ -30,24 +32,46 @@ var ModelMap = map[string]*types.ModelInfo{
 - `GPT5Mini` - "gpt-5-mini"
 - `GPT5` - "gpt-5"
 
-**Claude** (defined in `models.go`):
-- `Claude35Haiku` - "claude-3-5-haiku-20241022"
+**Claude** (defined in `claude.go`):
+- `Claude45Sonnet` - "claude-4-5-sonnet-20250514" ⭐ **Latest & most capable**
+- `Claude35Haiku` - "claude-3-5-haiku-20241022" (fastest, cheapest)
 - `Claude35Sonnet` - "claude-3-5-sonnet-20241022"
 - `Claude3Opus` - "claude-3-opus-20240229"
 
-**Gemini** (defined in `models.go`):
+**Gemini** (defined in `gemini.go`):
 - `Gemini25Flash` - "gemini-2.5-flash"
 - `Gemini20Flash` - "gemini-2.0-flash"
 - `Gemini15Pro` - "gemini-1.5-pro"
 
-### 3. Example: Switch to More Powerful Models
+### 3. Example Configurations
 
+**For maximum capability** (current default):
 ```go
-var ModelMap = map[string]*types.ModelInfo{
+var AllModels = map[string]*types.ModelInfo{
     Grok:   {ID: Grok, Name: Grok4FastReasoning, MaxTok: 131072, BaseURL: "..."},
     GPT:    {ID: GPT, Name: GPT5, MaxTok: 16384, BaseURL: "..."},
-    Claude: {ID: Claude, Name: Claude35Sonnet, MaxTok: 200000, BaseURL: "..."},
+    Claude: {ID: Claude, Name: Claude45Sonnet, MaxTok: 200000, BaseURL: "..."},
     Gemini: {ID: Gemini, Name: Gemini20Flash, MaxTok: 128000, BaseURL: "..."},
+}
+```
+
+**For speed/cost optimization**:
+```go
+var AllModels = map[string]*types.ModelInfo{
+    Grok:   {ID: Grok, Name: Grok4Fast, MaxTok: 131072, BaseURL: "..."},
+    GPT:    {ID: GPT, Name: GPT5Nano, MaxTok: 16384, BaseURL: "..."},
+    Claude: {ID: Claude, Name: Claude35Haiku, MaxTok: 200000, BaseURL: "..."},
+    Gemini: {ID: Gemini, Name: Gemini25Flash, MaxTok: 128000, BaseURL: "..."},
+}
+```
+
+**To run with only 2 models** (comment out the others):
+```go
+var AllModels = map[string]*types.ModelInfo{
+    // Grok:   {ID: Grok, Name: Grok4Fast, MaxTok: 131072, BaseURL: "..."},
+    GPT:    {ID: GPT, Name: GPT5Mini, MaxTok: 16384, BaseURL: "..."},
+    Claude: {ID: Claude, Name: Claude45Sonnet, MaxTok: 200000, BaseURL: "..."},
+    // Gemini: {ID: Gemini, Name: Gemini25Flash, MaxTok: 128000, BaseURL: "..."},
 }
 ```
 

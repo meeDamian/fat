@@ -13,7 +13,7 @@ import (
 const (
 	Claude = "claude"
 
-	Claude45Sonnet = "claude-4-5-sonnet-20250514"
+	Claude45Sonnet = "claude-sonnet-4-5-20250929"
 	Claude35Haiku  = "claude-3-5-haiku-20241022"
 	Claude35Sonnet = "claude-3-5-sonnet-20241022"
 	Claude3Opus    = "claude-3-opus-20240229"
