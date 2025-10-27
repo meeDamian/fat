@@ -5,10 +5,10 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/meedamian/fat/internal/types"
 	"github.com/yuin/goldmark"
 	"github.com/yuin/goldmark/ast"
 	"github.com/yuin/goldmark/text"
-	"github.com/meedamian/fat/internal/types"
 )
 
 // FormatPrompt creates a standardized prompt for all models
@@ -24,7 +24,7 @@ func FormatPrompt(modelID, modelName, question string, meta types.Meta, replies 
 
 	agentCount := len(meta.OtherAgents) + 1
 	b.WriteString(fmt.Sprintf("You are %s in a %d-agent collaboration. Other agents: %s. Round %d of %d.\n\n", modelName, agentCount, otherAgentsStr, meta.Round, meta.TotalRounds))
-	
+
 	b.WriteString("# QUESTION\n\n")
 	b.WriteString(question)
 	b.WriteString("\n\n")
@@ -47,7 +47,7 @@ func FormatPrompt(modelID, modelName, question string, meta types.Meta, replies 
 					answer = "(No answer provided)"
 				}
 				b.WriteString(fmt.Sprintf("## %s\n\n%s\n\n", agent, answer))
-				
+
 				// Include rationale if provided
 				if strings.TrimSpace(reply.Rationale) != "" {
 					b.WriteString(fmt.Sprintf("### Rationale\n\n%s\n\n", strings.TrimSpace(reply.Rationale)))
@@ -65,10 +65,10 @@ func FormatPrompt(modelID, modelName, question string, meta types.Meta, replies 
 					break
 				}
 			}
-			
+
 			if hasContent {
 				b.WriteString("# DISCUSSION\n\n")
-				
+
 				// Sort agent names for consistent ordering
 				agents := make([]string, 0, len(threads))
 				for agent := range threads {
@@ -77,15 +77,15 @@ func FormatPrompt(modelID, modelName, question string, meta types.Meta, replies 
 					}
 				}
 				sort.Strings(agents)
-				
+
 				for _, agent := range agents {
 					messages := threads[agent]
 					if len(messages) == 0 {
 						continue
 					}
-					
+
 					b.WriteString(fmt.Sprintf("## With %s\n\n", agent))
-					
+
 					// Show conversation thread in chronological order
 					for _, msg := range messages {
 						trimmed := strings.TrimSpace(msg.Message)
@@ -131,14 +131,14 @@ func FormatPrompt(modelID, modelName, question string, meta types.Meta, replies 
 		b.WriteString("IMPORTANT: Include ONLY the raw answer here - no scaffolding, disclaimers, or meta-commentary.\n")
 		b.WriteString("Save explanations for the RATIONALE section.\n\n")
 	}
-	
+
 	b.WriteString("# RATIONALE\n\n")
 	if meta.Round == 1 {
 		b.WriteString("(Optional) Brief explanation of your approach or reasoning\n\n")
 	} else {
 		b.WriteString("(Optional) Brief explanation of changes made (e.g., \"Added economic data from GPT's suggestion\")\n\n")
 	}
-	
+
 	if meta.Round > 1 {
 		b.WriteString("# DISCUSSION\n\n")
 		b.WriteString("(Optional - only if you have substantive feedback)\n\n")
@@ -184,7 +184,13 @@ func ParseResponse(content string) types.Reply {
 				}
 
 				if node.Level == 1 { // # headers
-					textContent := string(node.Text(reader.Source()))
+					// Extract heading text from child nodes
+					var textContent string
+					for child := node.FirstChild(); child != nil; child = child.NextSibling() {
+						if text, ok := child.(*ast.Text); ok {
+							textContent += string(text.Segment.Value(reader.Source()))
+						}
+					}
 					switch textContent {
 					case "ANSWER":
 						currentSection = "answer"
@@ -201,8 +207,14 @@ func ParseResponse(content string) types.Reply {
 						saveSection(&reply, currentSection, strings.TrimSpace(sectionContent.String()), currentAgent)
 						sectionContent.Reset()
 					}
-					
-					textContent := string(node.Text(reader.Source()))
+
+					// Extract heading text from child nodes
+					var textContent string
+					for child := node.FirstChild(); child != nil; child = child.NextSibling() {
+						if text, ok := child.(*ast.Text); ok {
+							textContent += string(text.Segment.Value(reader.Source()))
+						}
+					}
 					if strings.HasPrefix(textContent, "With ") {
 						currentAgent = strings.TrimPrefix(textContent, "With ")
 					}
@@ -211,7 +223,12 @@ func ParseResponse(content string) types.Reply {
 				}
 			case *ast.Text:
 				if currentSection != "" && node.Parent().Kind() != ast.KindHeading {
-					sectionContent.Write(node.Text(reader.Source()))
+					textValue := node.Segment.Value(reader.Source())
+					sectionContent.Write(textValue)
+					// Preserve line breaks: check if this Text node ends with a line break
+					if node.SoftLineBreak() || node.HardLineBreak() {
+						sectionContent.WriteString("\n")
+					}
 				}
 			case *ast.String:
 				if currentSection != "" {

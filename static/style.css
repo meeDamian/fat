@@ -276,6 +276,7 @@ body {
     font-family: 'JetBrains Mono', 'Courier New', monospace;
     font-size: 14px;
     color: rgba(237, 236, 255, 0.95);
+    white-space: pre-wrap;
 }
 
 .model-output p {
