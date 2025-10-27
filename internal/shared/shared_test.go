@@ -7,6 +7,7 @@ import (
 	"github.com/meedamian/fat/internal/types"
 )
 
+// TestFormatPrompt verifies that prompts include all required sections for multi-round collaboration
 func TestFormatPrompt(t *testing.T) {
 	meta := types.Meta{
 		Round:       2,
@@ -58,6 +59,7 @@ func TestFormatPrompt(t *testing.T) {
 	}
 }
 
+// TestParseResponse verifies basic parsing of ANSWER, RATIONALE, and DISCUSSION sections
 func TestParseResponse(t *testing.T) {
 	content := `# ANSWER
 
@@ -97,6 +99,7 @@ Your approach is solid.
 	}
 }
 
+// TestFormatPromptRound1 verifies that round 1 prompts exclude replies/discussion sections
 func TestFormatPromptRound1(t *testing.T) {
 	meta := types.Meta{
 		Round:       1,
@@ -133,6 +136,7 @@ func TestFormatPromptRound1(t *testing.T) {
 	}
 }
 
+// TestParseResponse_NumberedList verifies that numbered lists preserve their markers (1., 1), etc.)
 func TestParseResponse_NumberedList(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -190,6 +194,7 @@ Test.`,
 	}
 }
 
+// TestParseResponse_BulletedLists verifies that bullet markers (-, *, •) are preserved exactly
 func TestParseResponse_BulletedLists(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -260,6 +265,7 @@ Test.`,
 	}
 }
 
+// TestParseResponse_PlainLines verifies that plain text with newlines and blank lines is preserved
 func TestParseResponse_PlainLines(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -315,6 +321,7 @@ Test.`,
 	}
 }
 
+// TestParseResponse_MissingAnswer verifies handling of responses without ANSWER sections
 func TestParseResponse_MissingAnswer(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -354,6 +361,7 @@ Test.`,
 	}
 }
 
+// TestParseResponse_ComplexFormatting verifies preservation of nested lists, inline code, and indentation
 func TestParseResponse_ComplexFormatting(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -419,6 +427,7 @@ Test.`,
 	}
 }
 
+// TestParseResponse_Discussion verifies parsing of discussion threads with multiple agents
 func TestParseResponse_Discussion(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -505,6 +514,7 @@ Test.`,
 	}
 }
 
+// TestParseResponse_RawContentPreserved verifies that original content is stored in RawContent field
 func TestParseResponse_RawContentPreserved(t *testing.T) {
 	content := `# ANSWER
 
@@ -521,6 +531,7 @@ Test rationale`
 	}
 }
 
+// TestParseResponse_EdgeCases verifies handling of empty input, whitespace, and malformed headings
 func TestParseResponse_EdgeCases(t *testing.T) {
 	tests := []struct {
 		name    string
