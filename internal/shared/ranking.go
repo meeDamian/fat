@@ -129,10 +129,10 @@ func ParseRanking(content string) []string {
 			
 			// Clean up the agent name
 			agentName := strings.TrimSpace(line)
-			agentName = strings.TrimPrefix(agentName, "Agent ")
-			agentName = strings.TrimPrefix(agentName, "- ")
-			agentName = strings.TrimPrefix(agentName, "* ")
-			agentName = strings.TrimPrefix(agentName, "\"")
+			agentName, _ = strings.CutPrefix(agentName, "Agent ")
+			agentName, _ = strings.CutPrefix(agentName, "- ")
+			agentName, _ = strings.CutPrefix(agentName, "* ")
+			agentName, _ = strings.CutPrefix(agentName, "\"")
 			agentName = strings.TrimSuffix(agentName, "\"")
 			agentName = strings.TrimSuffix(agentName, ",")
 			agentName = strings.TrimSuffix(agentName, ".")

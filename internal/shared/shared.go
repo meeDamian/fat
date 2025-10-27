@@ -215,8 +215,8 @@ func ParseResponse(content string) types.Reply {
 							textContent += string(text.Segment.Value(reader.Source()))
 						}
 					}
-					if strings.HasPrefix(textContent, "With ") {
-						currentAgent = strings.TrimPrefix(textContent, "With ")
+					if agent, found := strings.CutPrefix(textContent, "With "); found {
+						currentAgent = agent
 					}
 					// Skip adding heading text to content
 					return ast.WalkSkipChildren, nil
