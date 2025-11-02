@@ -17,6 +17,7 @@ type Rate struct {
 type ModelVariant struct {
 	Name   string // API model name (e.g., "grok-4-fast")
 	MaxTok int64  // Max tokens for this variant
+	Rate   Rate   // Pricing for this variant
 }
 
 // ModelFamily contains common properties for a model family
@@ -34,7 +35,6 @@ type ModelInfo struct {
 	MaxTok         int64
 	BaseURL        string
 	APIKey         string
-	Rates          Rate
 	Client         any
 	Logger         *slog.Logger
 	RequestTimeout time.Duration

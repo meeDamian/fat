@@ -327,6 +327,21 @@ func handleQuestionWS(conn *websocket.Conn, ctx context.Context, msg map[string]
 	}()
 }
 
+// getRateForModel retrieves the pricing rate for a model by looking up its variant
+func getRateForModel(modelInfo *types.ModelInfo) types.Rate {
+	family, ok := models.ModelFamilies[modelInfo.ID]
+	if !ok {
+		return types.Rate{}
+	}
+	
+	variant, ok := family.Variants[modelInfo.Name]
+	if !ok {
+		return types.Rate{}
+	}
+	
+	return variant.Rate
+}
+
 // getAPIKeyForFamily retrieves the API key for a model family
 func getAPIKeyForFamily(familyID string) string {
 	familyEnvVars := map[string]string{
@@ -682,7 +697,8 @@ func rankModels(ctx context.Context, requestID, question string, replies map[str
 			if len(ranking) > 0 {
 				rankedModelsJSON, _ := json.Marshal(ranking)
 				// Calculate cost: (tokens_in * rate_in + tokens_out * rate_out) / 1M
-				rankingCost := (float64(result.TokIn)*mi.Rates.In + float64(result.TokOut)*mi.Rates.Out) / 1_000_000
+				rate := getRateForModel(mi)
+				rankingCost := (float64(result.TokIn)*rate.In + float64(result.TokOut)*rate.Out) / 1_000_000
 				rankingRecord := db.Ranking{
 					RequestID:    requestID,
 					RankerModel:  mi.Name,
@@ -772,7 +788,8 @@ func saveToDatabase(ctx context.Context, reqMetrics *metrics.RequestMetrics, que
 
 		if modelInfo != nil {
 			// Calculate cost: (tokens_in * rate_in + tokens_out * rate_out) / 1M
-			cost := (float64(mm.TotalTokens.Input)*modelInfo.Rates.In + float64(mm.TotalTokens.Output)*modelInfo.Rates.Out) / 1_000_000
+			rate := getRateForModel(modelInfo)
+			cost := (float64(mm.TotalTokens.Input)*rate.In + float64(mm.TotalTokens.Output)*rate.Out) / 1_000_000
 			totalCost += cost
 		}
 	}
@@ -809,8 +826,9 @@ func saveToDatabase(ctx context.Context, reqMetrics *metrics.RequestMetrics, que
 			continue
 		}
 
+		rate := getRateForModel(modelInfo)
 		for _, roundMetric := range mm.RoundMetrics {
-			cost := (float64(roundMetric.Tokens.Input)*modelInfo.Rates.In + float64(roundMetric.Tokens.Output)*modelInfo.Rates.Out) / 1_000_000
+			cost := (float64(roundMetric.Tokens.Input)*rate.In + float64(roundMetric.Tokens.Output)*rate.Out) / 1_000_000
 
 			mr := db.ModelRound{
 				RequestID:  reqMetrics.RequestID,
@@ -843,7 +861,7 @@ func saveToDatabase(ctx context.Context, reqMetrics *metrics.RequestMetrics, que
 			avgResponseTime = totalTime / int64(len(mm.RoundMetrics))
 		}
 
-		modelCost := (float64(mm.TotalTokens.Input)*modelInfo.Rates.In + float64(mm.TotalTokens.Output)*modelInfo.Rates.Out) / 1_000_000
+		modelCost := (float64(mm.TotalTokens.Input)*rate.In + float64(mm.TotalTokens.Output)*rate.Out) / 1_000_000
 
 		if err := appDB.UpdateModelStats(ctx, modelID, modelInfo.Name, won,
 			mm.TotalTokens.Input, mm.TotalTokens.Output, modelCost, avgResponseTime); err != nil {
