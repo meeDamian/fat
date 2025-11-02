@@ -174,6 +174,7 @@ func FormatPrompt(modelID, modelName, question string, meta types.Meta, replies 
 		b.WriteString("- Point out logical flaws, contradictions, or reasoning errors\n")
 		b.WriteString("- Challenge assumptions that don't align with the question context\n")
 		b.WriteString("- Identify when agents suggest things already present in the discussion\n")
+		b.WriteString("- Flag violations of the original prompt's requirements (format, length, structure, etc.)\n")
 		b.WriteString("- Provide 1-2 specific, actionable messages (20-50 words each)\n\n")
 	}
 
