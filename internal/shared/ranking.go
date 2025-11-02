@@ -9,13 +9,12 @@ import (
 	"github.com/meedamian/fat/internal/types"
 )
 
-// FormatRankingPrompt creates a standardized ranking prompt with anonymized agents
-func FormatRankingPrompt(agentName, question string, otherAgents []string, finalAnswers map[string]types.Reply) string {
-	var b strings.Builder
-
-	// Create anonymization mapping
-	allAgents := append([]string{agentName}, otherAgents...)
-	sort.Strings(allAgents) // Sort for consistency
+// CreateAnonymizationMap creates a shared random mapping from agent names to letters
+func CreateAnonymizationMap(allAgents []string) map[string]string {
+	// Sort for consistency
+	sorted := make([]string, len(allAgents))
+	copy(sorted, allAgents)
+	sort.Strings(sorted)
 	
 	// Generate random letter assignments
 	letters := []string{"A", "B", "C", "D", "E", "F", "G", "H"}
@@ -23,12 +22,20 @@ func FormatRankingPrompt(agentName, question string, otherAgents []string, final
 	
 	// Map real names to anonymous letters
 	anonMap := make(map[string]string)
-	reverseMap := make(map[string]string)
-	for i, agent := range allAgents {
-		letter := letters[i]
-		anonMap[agent] = letter
-		reverseMap[letter] = agent
+	for i, agent := range sorted {
+		anonMap[agent] = letters[i]
 	}
+	
+	return anonMap
+}
+
+// FormatRankingPrompt creates a standardized ranking prompt with anonymized agents
+func FormatRankingPrompt(agentName, question string, otherAgents []string, finalAnswers map[string]types.Reply, anonMap map[string]string) string {
+	var b strings.Builder
+
+	// Build list of all agents
+	allAgents := append([]string{agentName}, otherAgents...)
+	sort.Strings(allAgents) // Sort for consistency
 
 	b.WriteString("╔══════════════════════════════════════════════════════════════╗\n")
 	b.WriteString("║               🚨 RANKING MODE - NOT WRITING MODE 🚨          ║\n")
@@ -97,9 +104,13 @@ func FormatRankingPrompt(agentName, question string, otherAgents []string, final
 	b.WriteString("YOUR RESPONSE MUST BE ONLY AGENT LETTERS IN THIS EXACT FORMAT:\n")
 	b.WriteString("══════════════════════════════════════════════════════════════\n\n")
 	
-	// Show example ranking with letters
-	exampleLetters := make([]string, len(allAgents))
-	copy(exampleLetters, letters[:len(allAgents)])
+	// Show example ranking with letters (extract from anonMap)
+	exampleLetters := make([]string, 0, len(allAgents))
+	for _, agent := range allAgents {
+		if letter, ok := anonMap[agent]; ok {
+			exampleLetters = append(exampleLetters, letter)
+		}
+	}
 	for _, letter := range exampleLetters {
 		b.WriteString(fmt.Sprintf("%s\n", letter))
 	}
@@ -110,7 +121,7 @@ func FormatRankingPrompt(agentName, question string, otherAgents []string, final
 	
 	// Add mapping at the end for the system to decode (hidden from model's perspective in practice)
 	b.WriteString("<!-- ANONYMIZATION_MAP:")
-	for letter, agent := range reverseMap {
+	for agent, letter := range anonMap {
 		b.WriteString(fmt.Sprintf(" %s=%s", letter, agent))
 	}
 	b.WriteString(" -->")

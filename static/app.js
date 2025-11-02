@@ -2,7 +2,6 @@ const questionInput = document.getElementById('questionInput');
 const roundsSelect = document.getElementById('roundsSelect');
 const submitBtn = document.getElementById('submitBtn');
 const conversationBoard = document.getElementById('conversationBoard');
-const finalResult = document.getElementById('finalResult');
 const toggleConfigLink = document.getElementById('toggleConfig');
 const modelConfig = document.getElementById('modelConfig');
 const controlPanel = document.querySelector('.control-panel');
@@ -19,6 +18,20 @@ const cardElements = {
     claude: document.getElementById('claude'),
     gemini: document.getElementById('gemini')
 };
+
+const statusIndicators = {
+    grok: cardElements.grok?.querySelector('.model-status') || null,
+    gpt: cardElements.gpt?.querySelector('.model-status') || null,
+    claude: cardElements.claude?.querySelector('.model-status') || null,
+    gemini: cardElements.gemini?.querySelector('.model-status') || null
+};
+
+function setCardStatus(model, icon = '') {
+    const indicator = statusIndicators[model];
+    if (!indicator) return;
+    indicator.textContent = icon;
+    indicator.classList.toggle('visible', Boolean(icon));
+}
 
 const outputs = {
     grok: document.getElementById('grok-output'),
@@ -72,6 +85,7 @@ function resetModelStates(totalRounds) {
         state.responses = new Array(totalRounds).fill(null);
         state.displayedRound = null;
         renderRoundDots(model);
+        setCardStatus(model, '');
     });
 }
 
@@ -178,10 +192,9 @@ function initWebSocket() {
                 output.innerHTML = '<p class="placeholder">Responses will appear here once the collaboration begins.</p>';
                 output.className = 'model-output';
                 cardElements[model].className = 'model-card';
+                setCardStatus(model, '');
             });
             conversationBoard.classList.remove('hidden');
-            finalResult.classList.add('hidden');
-            finalResult.textContent = '';
             submitBtn.textContent = 'Starting...';
             resetHeroLayout();
         } else if (data.type === 'round_start') {
@@ -194,6 +207,7 @@ function initWebSocket() {
             if (output) {
                 output.className = 'model-output';
                 cardElements[data.model].classList.remove('loading', 'error', 'winner');
+                setCardStatus(data.model, '');
                 output.textContent = data.response;
                 markRoundCompleted(data.model, data.round, data.response);
                 setActiveDot(data.model, data.round);
@@ -204,6 +218,7 @@ function initWebSocket() {
                 output.className = 'model-output error-text';
                 cardElements[data.model].classList.remove('loading');
                 cardElements[data.model].classList.add('error');
+                setCardStatus(data.model, '');
                 output.textContent = `Error: ${data.error}`;
             }
         } else if (data.type === 'loading') {
@@ -211,6 +226,7 @@ function initWebSocket() {
             if (output) {
                 output.className = 'model-output loading-text';
                 cardElements[data.model].classList.add('loading');
+                setCardStatus(data.model, '');
                 output.textContent = 'Processing...';
             }
         } else if (data.type === 'ranking_start') {
@@ -221,13 +237,17 @@ function initWebSocket() {
             const winnerId = data.model;
             const runnerUpId = data.runner_up;
 
+            Object.keys(statusIndicators).forEach(model => setCardStatus(model, ''));
+
             if (winnerId && cardElements[winnerId]) {
                 cardElements[winnerId].classList.add('winner');
                 currentHeroId = winnerId;
+                setCardStatus(winnerId, '🏆');
             }
 
             if (runnerUpId && cardElements[runnerUpId]) {
                 cardElements[runnerUpId].classList.add('runner-up');
+                setCardStatus(runnerUpId, '🥈');
             }
 
             buildHeroLayout(winnerId, runnerUpId);
@@ -235,15 +255,6 @@ function initWebSocket() {
             submitBtn.textContent = '✓ Complete';
             submitBtn.disabled = false;
             setSelectorsEnabled(true);
-            finalResult.classList.remove('hidden');
-
-            const winnerName = winnerId ? cardElements[winnerId].querySelector('.model-name').textContent : data.model;
-            let resultHTML = `<strong>🏆 Winner:</strong> ${winnerName}`;
-            if (runnerUpId && cardElements[runnerUpId]) {
-                const runnerName = cardElements[runnerUpId].querySelector('.model-name').textContent;
-                resultHTML += ` &nbsp;|&nbsp; <strong>🥈 Runner-up:</strong> ${runnerName}`;
-            }
-            finalResult.innerHTML = resultHTML;
         }
     };
 
@@ -268,13 +279,12 @@ submitBtn.addEventListener('click', async function() {
     toggleConfigLink.textContent = '⚙️ Configure';
 
     conversationBoard.classList.remove('hidden');
-    finalResult.classList.add('hidden');
-    finalResult.textContent = '';
     Object.entries(outputs).forEach(([model, output]) => {
         output.innerHTML = '<p class="placeholder">Awaiting model response...</p>';
         output.className = 'model-output loading-text';
         cardElements[model].classList.remove('winner', 'runner-up', 'error');
         cardElements[model].classList.add('loading');
+        setCardStatus(model, '');
         renderRoundDots(model);
     });
 

@@ -606,6 +606,13 @@ func rankModels(ctx context.Context, requestID, question string, replies map[str
 		}
 	}
 
+	// Create shared anonymization map for all models
+	allAgentNames := make([]string, 0, len(activeModels))
+	for _, mi := range activeModels {
+		allAgentNames = append(allAgentNames, mi.Name)
+	}
+	anonMap := shared.CreateAnonymizationMap(allAgentNames)
+
 	// Collect rankings from all models
 	rankings := make(map[string][]string)
 	var wg sync.WaitGroup
@@ -626,8 +633,8 @@ func rankModels(ctx context.Context, requestID, question string, replies map[str
 				}
 			}
 
-			// Create ranking prompt
-			prompt := shared.FormatRankingPrompt(mi.Name, question, otherAgents, repliesByName)
+			// Create ranking prompt with shared anonymization map
+			prompt := shared.FormatRankingPrompt(mi.Name, question, otherAgents, repliesByName, anonMap)
 
 			// Create timeout context
 			timeout := mi.RequestTimeout
@@ -701,11 +708,7 @@ func rankModels(ctx context.Context, requestID, question string, replies map[str
 
 	wg.Wait()
 
-	// Aggregate rankings
-	allAgentNames := make([]string, 0, len(activeModels))
-	for _, mi := range activeModels {
-		allAgentNames = append(allAgentNames, mi.Name)
-	}
+	// Aggregate rankings (allAgentNames already created above for anonymization map)
 
 	// Log how many valid rankings we got
 	logger.Info("aggregating rankings",
