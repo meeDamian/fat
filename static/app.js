@@ -8,7 +8,7 @@ const controlPanel = document.querySelector('.control-panel');
 const hero = document.querySelector('.hero');
 const heroStage = document.getElementById('heroStage');
 const galleryStage = document.getElementById('galleryStage');
-const modelOrder = ['grok', 'gpt', 'claude', 'gemini'];
+const modelOrder = ['grok', 'gpt', 'claude', 'gemini', 'deepseek'];
 let heroLayoutEnabled = false;
 let currentHeroId = null;
 
@@ -16,14 +16,16 @@ const cardElements = {
     grok: document.getElementById('grok'),
     gpt: document.getElementById('gpt'),
     claude: document.getElementById('claude'),
-    gemini: document.getElementById('gemini')
+    gemini: document.getElementById('gemini'),
+    deepseek: document.getElementById('deepseek')
 };
 
 const statusIndicators = {
     grok: cardElements.grok?.querySelector('.model-status') || null,
     gpt: cardElements.gpt?.querySelector('.model-status') || null,
     claude: cardElements.claude?.querySelector('.model-status') || null,
-    gemini: cardElements.gemini?.querySelector('.model-status') || null
+    gemini: cardElements.gemini?.querySelector('.model-status') || null,
+    deepseek: cardElements.deepseek?.querySelector('.model-status') || null
 };
 
 function setCardStatus(model, icon = '') {
@@ -37,14 +39,16 @@ const outputs = {
     grok: document.getElementById('grok-output'),
     gpt: document.getElementById('gpt-output'),
     claude: document.getElementById('claude-output'),
-    gemini: document.getElementById('gemini-output')
+    gemini: document.getElementById('gemini-output'),
+    deepseek: document.getElementById('deepseek-output')
 };
 
 const selectors = {
     grok: document.getElementById('grok-selector'),
     gpt: document.getElementById('gpt-selector'),
     claude: document.getElementById('claude-selector'),
-    gemini: document.getElementById('gemini-selector')
+    gemini: document.getElementById('gemini-selector'),
+    deepseek: document.getElementById('deepseek-selector')
 };
 
 // Fetch random question from backend
@@ -65,7 +69,8 @@ const modelState = {
     grok: createEmptyModelState(),
     gpt: createEmptyModelState(),
     claude: createEmptyModelState(),
-    gemini: createEmptyModelState()
+    gemini: createEmptyModelState(),
+    deepseek: createEmptyModelState()
 };
 
 function createEmptyModelState() {

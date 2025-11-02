@@ -71,15 +71,27 @@ var ModelFamilies = map[string]types.ModelFamily{
 			Gemini20FlashLite: {Name: Gemini20FlashLite, MaxTok: 1_048_576},
 		},
 	},
+
+	// Models list: https://api-docs.deepseek.com/
+	DeepSeek: {
+		ID:       DeepSeek,
+		Provider: "DeepSeek",
+		BaseURL:  "https://api.deepseek.com/v1/chat/completions",
+		Variants: map[string]types.ModelVariant{
+			DeepSeekChat:  {Name: DeepSeekChat, MaxTok: 128_000},
+			DeepSeekCoder: {Name: DeepSeekCoder, MaxTok: 128_000},
+		},
+	},
 }
 
 // ActiveModels defines which model variant to use for each family
 // Change the variant name here to switch models
 var ActiveModels = map[string]string{
-	Grok:   Grok4Fast,
-	GPT:    GPT5Mini,
-	Claude: Claude35Haiku,
-	Gemini: Gemini25Flash,
+	Grok:     Grok4Fast,
+	GPT:      GPT5Mini,
+	Claude:   Claude35Haiku,
+	Gemini:   Gemini25Flash,
+	DeepSeek: DeepSeekChat,
 }
 
 // AllModels builds runtime ModelInfo instances from families and active models
@@ -122,6 +134,8 @@ func NewModel(info *types.ModelInfo) types.Model {
 		return NewClaudeModel(info)
 	case Gemini:
 		return NewGeminiModel(info)
+	case DeepSeek:
+		return NewDeepSeekModel(info)
 	default:
 		return nil
 	}

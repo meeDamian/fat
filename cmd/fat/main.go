@@ -330,10 +330,11 @@ func handleQuestionWS(conn *websocket.Conn, ctx context.Context, msg map[string]
 // getAPIKeyForFamily retrieves the API key for a model family
 func getAPIKeyForFamily(familyID string) string {
 	familyEnvVars := map[string]string{
-		models.Grok:   "GROK_KEY",
-		models.GPT:    "GPT_KEY",
-		models.Claude: "CLAUDE_KEY",
-		models.Gemini: "GEMINI_KEY",
+		models.Grok:     "GROK_KEY",
+		models.GPT:      "GPT_KEY",
+		models.Claude:   "CLAUDE_KEY",
+		models.Gemini:   "GEMINI_KEY",
+		models.DeepSeek: "DEEPSEEK_KEY",
 	}
 	
 	envVar, ok := familyEnvVars[familyID]
@@ -859,10 +860,11 @@ func loadKeys() {
 	// Map model family IDs to their environment variable names
 	// This is the only mapping needed - works with any model variant
 	familyEnvVars := map[string]string{
-		models.Grok:   "GROK_KEY",
-		models.GPT:    "GPT_KEY",
-		models.Claude: "CLAUDE_KEY",
-		models.Gemini: "GEMINI_KEY",
+		models.Grok:     "GROK_KEY",
+		models.GPT:      "GPT_KEY",
+		models.Claude:   "CLAUDE_KEY",
+		models.Gemini:   "GEMINI_KEY",
+		models.DeepSeek: "DEEPSEEK_KEY",
 	}
 
 	// Try environment variables first
