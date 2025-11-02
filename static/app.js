@@ -72,21 +72,29 @@ function createEmptyModelState() {
     return {
         totalRounds: lastTotalRounds,
         responses: [],
+        rationales: [],
+        discussions: [],
         dots: [],
         displayedRound: null
     };
 }
 
-function resetModelStates(totalRounds) {
-    lastTotalRounds = totalRounds;
-    Object.keys(modelState).forEach(model => {
-        const state = modelState[model];
+function resetModelState(model, totalRounds) {
+    const state = modelState[model];
+    if (state) {
         state.totalRounds = totalRounds;
         state.responses = new Array(totalRounds).fill(null);
+        state.rationales = new Array(totalRounds).fill(null);
+        state.discussions = new Array(totalRounds).fill(null);
         state.displayedRound = null;
         renderRoundDots(model);
         setCardStatus(model, '');
-    });
+    }
+}
+
+function resetModelStates(totalRounds) {
+    lastTotalRounds = totalRounds;
+    Object.keys(modelState).forEach(model => resetModelState(model, totalRounds));
 }
 
 function ensureRounds(totalRounds) {
@@ -118,10 +126,12 @@ function renderRoundDots(model) {
     }
 }
 
-function markRoundCompleted(model, round, responseText) {
+function markRoundCompleted(model, round, responseText, rationaleText, discussionData) {
     const state = modelState[model];
     if (!state) return;
     state.responses[round - 1] = responseText;
+    state.rationales[round - 1] = rationaleText || '';
+    state.discussions[round - 1] = discussionData || {};
     const dot = state.dots[round - 1];
     if (dot) {
         dot.classList.add('completed');
@@ -150,9 +160,26 @@ function showRoundResponse(model, round) {
     const state = modelState[model];
     if (!state) return;
     const response = state.responses[round - 1];
-    if (response !== null && response !== undefined) {
-        outputs[model].className = 'model-output';
-        outputs[model].textContent = response;
+    const rationale = state.rationales[round - 1];
+    
+    const output = outputs[model];
+    output.className = 'model-output';
+    output.innerHTML = '';
+    
+    // If there's a response, show it
+    if (response) {
+        const answerDiv = document.createElement('div');
+        answerDiv.className = 'answer-text';
+        answerDiv.textContent = response;
+        output.appendChild(answerDiv);
+    }
+    
+    // Show rationale if present
+    if (rationale) {
+        const rationaleDiv = document.createElement('div');
+        rationaleDiv.className = 'rationale-text';
+        rationaleDiv.textContent = rationale;
+        output.appendChild(rationaleDiv);
     }
 }
 
@@ -195,6 +222,7 @@ function initWebSocket() {
                 setCardStatus(model, '');
             });
             conversationBoard.classList.remove('hidden');
+            document.getElementById('discussionsSection')?.classList.add('hidden');
             submitBtn.textContent = 'Starting...';
             resetHeroLayout();
         } else if (data.type === 'round_start') {
@@ -205,12 +233,16 @@ function initWebSocket() {
         } else if (data.type === 'response') {
             const output = outputs[data.model];
             if (output) {
-                output.className = 'model-output';
                 cardElements[data.model].classList.remove('loading', 'error', 'winner');
                 setCardStatus(data.model, '');
-                output.textContent = data.response;
-                markRoundCompleted(data.model, data.round, data.response);
+                markRoundCompleted(data.model, data.round, data.response, data.rationale, data.discussion);
+                showRoundResponse(data.model, data.round);
                 setActiveDot(data.model, data.round);
+                
+                // Update discussions section if there are any discussions
+                if (data.discussion && Object.keys(data.discussion).length > 0) {
+                    buildDiscussionsSection();
+                }
             }
         } else if (data.type === 'error') {
             const output = outputs[data.model];
@@ -251,6 +283,9 @@ function initWebSocket() {
             }
 
             buildHeroLayout(winnerId, runnerUpId);
+            
+            // Build and show discussions
+            buildDiscussionsSection();
 
             submitBtn.textContent = '✓ Complete';
             submitBtn.disabled = false;
@@ -503,6 +538,102 @@ if (roundsSlider) {
         updateRoundsSliderUI(value);
     });
     updateRoundsSliderUI(parseInt(roundsSlider.value, 10));
+}
+
+// Build discussions section from collected discussion data
+function buildDiscussionsSection() {
+    const discussionsSection = document.getElementById('discussionsSection');
+    const discussionsContainer = document.getElementById('discussionsContainer');
+    
+    if (!discussionsSection || !discussionsContainer) return;
+    
+    // Collect all discussions grouped by agent pairs
+    const pairConversations = {};
+    
+    Object.keys(modelState).forEach(fromModel => {
+        const state = modelState[fromModel];
+        state.discussions.forEach((discussionData, roundIndex) => {
+            if (!discussionData || Object.keys(discussionData).length === 0) return;
+            
+            Object.entries(discussionData).forEach(([toAgent, message]) => {
+                // Create a normalized pair key (alphabetically sorted)
+                const pair = [fromModel, toAgent].sort().join('-');
+                
+                if (!pairConversations[pair]) {
+                    pairConversations[pair] = [];
+                }
+                
+                // Add message to the conversation
+                pairConversations[pair].push({
+                    round: roundIndex + 1,
+                    from: fromModel,
+                    to: toAgent,
+                    message: message
+                });
+            });
+        });
+    });
+    
+    // Clear container
+    discussionsContainer.innerHTML = '';
+    
+    // If no discussions, hide section
+    if (Object.keys(pairConversations).length === 0) {
+        discussionsSection.classList.add('hidden');
+        return;
+    }
+    
+    // Show section and build UI
+    discussionsSection.classList.remove('hidden');
+    
+    // Sort pairs alphabetically
+    const sortedPairs = Object.keys(pairConversations).sort();
+    
+    sortedPairs.forEach(pair => {
+        const messages = pairConversations[pair];
+        const [model1, model2] = pair.split('-');
+        
+        // Sort messages chronologically (by round, then maintain order)
+        messages.sort((a, b) => a.round - b.round);
+        
+        const pairDiv = document.createElement('div');
+        pairDiv.className = 'discussion-pair';
+        
+        const headerDiv = document.createElement('div');
+        headerDiv.className = 'discussion-pair-header';
+        
+        const model1Name = cardElements[model1]?.querySelector('.model-name')?.textContent || model1;
+        const model2Name = cardElements[model2]?.querySelector('.model-name')?.textContent || model2;
+        
+        headerDiv.textContent = `${model1Name} ↔ ${model2Name}`;
+        pairDiv.appendChild(headerDiv);
+        
+        const conversationDiv = document.createElement('div');
+        conversationDiv.className = 'discussion-conversation';
+        
+        // Display all messages in chronological order
+        messages.forEach(msg => {
+            const msgDiv = document.createElement('div');
+            msgDiv.className = 'discussion-message';
+            
+            const fromName = cardElements[msg.from]?.querySelector('.model-name')?.textContent || msg.from;
+            
+            const metaSpan = document.createElement('span');
+            metaSpan.className = 'discussion-meta';
+            metaSpan.textContent = `Round ${msg.round} • ${fromName}`;
+            
+            const textDiv = document.createElement('div');
+            textDiv.className = 'discussion-text';
+            textDiv.textContent = msg.message;
+            
+            msgDiv.appendChild(metaSpan);
+            msgDiv.appendChild(textDiv);
+            conversationDiv.appendChild(msgDiv);
+        });
+        
+        pairDiv.appendChild(conversationDiv);
+        discussionsContainer.appendChild(pairDiv);
+    });
 }
 
 // Initialize WebSocket connection

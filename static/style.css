@@ -606,10 +606,27 @@ body {
     font-size: 14px;
     color: rgba(237, 236, 255, 0.95);
     white-space: pre-wrap;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
 }
 
 .model-output p {
     margin: 0;
+}
+
+.answer-text {
+    line-height: 1.6;
+    color: rgba(237, 236, 255, 0.95);
+}
+
+.rationale-text {
+    font-size: 12px;
+    line-height: 1.5;
+    color: rgba(237, 236, 255, 0.65);
+    padding-top: 8px;
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+    font-style: italic;
 }
 
 .model-card.winner {
@@ -625,6 +642,80 @@ body {
 
 .model-card.loading {
     border-color: rgba(124, 92, 255, 0.45);
+}
+
+/* Discussions Section */
+.discussions-section {
+    margin-top: 48px;
+    padding: 32px;
+    background: linear-gradient(155deg, rgba(24, 20, 48, 0.65), rgba(18, 15, 38, 0.75));
+    border: 1px solid rgba(124, 92, 255, 0.12);
+    border-radius: 20px;
+}
+
+.discussions-section.hidden {
+    display: none;
+}
+
+.discussions-section h2 {
+    margin: 0 0 24px 0;
+    font-size: 20px;
+    font-weight: 700;
+    color: rgba(255, 255, 255, 0.95);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+}
+
+.discussions-container {
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+}
+
+.discussion-pair {
+    background: rgba(15, 13, 30, 0.6);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 14px;
+    padding: 20px;
+}
+
+.discussion-pair-header {
+    font-size: 15px;
+    font-weight: 600;
+    color: rgba(124, 92, 255, 0.95);
+    margin-bottom: 16px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.discussion-conversation {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.discussion-message {
+    background: rgba(15, 13, 30, 0.5);
+    border-left: 3px solid rgba(124, 92, 255, 0.4);
+    padding: 12px 16px;
+    border-radius: 8px;
+}
+
+.discussion-meta {
+    display: block;
+    font-size: 11px;
+    font-weight: 600;
+    color: rgba(124, 92, 255, 0.85);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 8px;
+}
+
+.discussion-text {
+    font-size: 13px;
+    line-height: 1.6;
+    color: rgba(237, 236, 255, 0.85);
+    font-family: 'JetBrains Mono', 'Courier New', monospace;
 }
 
 .model-card.error {

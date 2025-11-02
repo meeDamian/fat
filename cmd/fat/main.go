@@ -464,6 +464,8 @@ func processQuestion(ctx context.Context, question string, numRounds int, active
 					"model":      result.modelID,
 					"round":      round + 1,
 					"response":   result.reply.Answer,
+					"rationale":  result.reply.Rationale,
+					"discussion": result.reply.Discussion,
 					"request_id": requestID,
 				})
 			}
