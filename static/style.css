@@ -23,31 +23,37 @@ body {
 .hero {
     text-align: center;
     color: #f4f3ff;
-    padding-bottom: 32px;
+    padding-bottom: 48px;
+    transition: padding 0.4s ease;
 }
 
-.badge {
-    display: inline-block;
-    background: rgba(255, 255, 255, 0.08);
-    border: 1px solid rgba(255, 255, 255, 0.15);
-    padding: 8px 16px;
-    border-radius: 999px;
-    font-size: 14px;
-    letter-spacing: 0.04em;
-    margin-bottom: 16px;
+.hero.compact {
+    padding-bottom: 24px;
 }
 
 .hero h1 {
-    font-size: clamp(2.2rem, 5vw, 3.4rem);
-    font-weight: 700;
+    font-size: clamp(4rem, 8vw, 6rem);
+    font-weight: 800;
     margin: 0;
+    letter-spacing: 0.02em;
+    transition: font-size 0.4s ease;
 }
 
-.hero p {
-    margin: 12px auto 0;
-    max-width: 620px;
-    line-height: 1.6;
-    color: rgba(244, 243, 255, 0.8);
+.hero.compact h1 {
+    font-size: clamp(2rem, 4vw, 2.5rem);
+}
+
+.tagline {
+    margin: 16px auto 0;
+    font-size: clamp(1rem, 2vw, 1.25rem);
+    line-height: 1.5;
+    color: rgba(244, 243, 255, 0.75);
+    transition: font-size 0.4s ease, margin 0.4s ease;
+}
+
+.hero.compact .tagline {
+    font-size: clamp(0.875rem, 1.5vw, 1rem);
+    margin: 8px auto 0;
 }
 
 .workspace {
@@ -60,16 +66,40 @@ body {
 }
 
 .control-panel {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 24px;
-    justify-content: space-between;
-    align-items: flex-end;
     margin-bottom: clamp(28px, 4vw, 40px);
+    transition: margin 0.4s ease;
+}
+
+.control-panel.initial {
+    max-width: 700px;
+    margin: 0 auto clamp(28px, 4vw, 40px);
 }
 
 .control-inputs {
-    flex: 1 1 380px;
+    width: 100%;
+}
+
+.control-footer {
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+    margin-top: 12px;
+}
+
+.spacer {
+    flex: 1;
+}
+
+.toggle-config-link {
+    color: rgba(124, 92, 255, 0.9);
+    text-decoration: none;
+    font-size: 13px;
+    transition: color 0.2s ease;
+}
+
+.toggle-config-link:hover {
+    color: rgba(124, 92, 255, 1);
+    text-decoration: underline;
 }
 
 .input-label {
@@ -84,17 +114,28 @@ body {
 .input-wrapper {
     display: flex;
     gap: 12px;
+    align-items: flex-start;
 }
 
 #questionInput {
     flex: 1;
-    padding: 16px 18px;
+    padding: 16px 20px;
     background: rgba(14, 11, 29, 0.85);
     border: 1px solid rgba(255, 255, 255, 0.12);
     border-radius: 16px;
     color: #f7f7ff;
+    font-size: 15px;
+    font-family: inherit;
+    line-height: 1.5;
+    resize: vertical;
+    min-height: 80px;
+    transition: all 0.3s ease;
+}
+
+.control-panel.initial #questionInput {
+    padding: 20px 24px;
     font-size: 16px;
-    transition: border-color 0.3s ease, box-shadow 0.3s ease;
+    min-height: 100px;
 }
 
 #questionInput::placeholder {
@@ -108,15 +149,22 @@ body {
 }
 
 .primary-btn {
-    padding: 16px 28px;
+    padding: 20px 32px;
     border: none;
     border-radius: 14px;
     background: linear-gradient(135deg, #7c5cff 0%, #6c8cff 45%, #4ff0f5 100%);
     font-weight: 600;
+    font-size: 16px;
     color: #0b0a19;
     cursor: pointer;
-    transition: transform 0.25s ease, box-shadow 0.25s ease;
+    transition: all 0.25s ease;
     white-space: nowrap;
+    min-width: 180px;
+}
+
+.control-panel.initial .primary-btn {
+    padding: 24px 40px;
+    font-size: 18px;
 }
 
 .primary-btn:hover:not(:disabled) {
@@ -125,36 +173,60 @@ body {
 }
 
 .primary-btn:disabled {
-    opacity: 0.6;
+    opacity: 0.7;
     cursor: not-allowed;
     transform: none;
 }
 
-.control-settings {
-    display: flex;
-    align-items: center;
+/* Configuration Panel */
+.model-config {
+    margin-bottom: 32px;
+    padding: 24px;
+    background: rgba(14, 11, 29, 0.5);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 16px;
+    transition: all 0.3s ease;
+}
+
+.model-config.hidden {
+    display: none;
+}
+
+.config-section {
+    margin-bottom: 24px;
+}
+
+.config-section:last-child {
+    margin-bottom: 0;
+}
+
+.config-section h3 {
+    margin: 0 0 16px 0;
+    font-size: 14px;
+    font-weight: 600;
+    color: rgba(255, 255, 255, 0.9);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.model-config-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
     gap: 16px;
-    color: rgba(255, 255, 255, 0.8);
 }
 
-.control-settings select {
-    padding: 12px 16px;
-    border-radius: 12px;
-    border: 1px solid rgba(255, 255, 255, 0.2);
-    background: rgba(14, 11, 29, 0.85);
-    color: #f7f7ff;
-    font-size: 15px;
-    cursor: pointer;
+.model-config-item label {
+    display: block;
+    margin-bottom: 8px;
+    font-size: 13px;
+    color: rgba(255, 255, 255, 0.85);
 }
 
-.status-chip {
-    padding: 10px 16px;
-    border-radius: 999px;
-    background: rgba(124, 92, 255, 0.18);
-    border: 1px solid rgba(124, 92, 255, 0.35);
-    color: #c9c3ff;
-    font-weight: 500;
-    transition: background 0.3s ease, color 0.3s ease;
+.provider-tag {
+    font-size: 11px;
+    font-weight: normal;
+    color: rgba(255, 255, 255, 0.5);
+    margin-left: 4px;
 }
 
 .board {
@@ -248,15 +320,9 @@ body {
 
 .model-card header {
     display: flex;
-    flex-direction: column;
-    gap: 12px;
-    margin-bottom: 16px;
-}
-
-.model-header-top {
-    display: flex;
     justify-content: space-between;
     align-items: center;
+    margin-bottom: 16px;
 }
 
 .model-name {
@@ -273,36 +339,42 @@ body {
 
 .model-selector {
     width: 100%;
-    padding: 8px 12px;
-    background: rgba(15, 13, 30, 0.6);
+    padding: 10px 14px;
+    background: rgba(15, 13, 30, 0.7);
     border: 1px solid rgba(255, 255, 255, 0.15);
-    border-radius: 8px;
+    border-radius: 10px;
     color: rgba(237, 236, 255, 0.95);
-    font-size: 13px;
-    font-family: 'JetBrains Mono', monospace;
+    font-size: 14px;
+    font-family: inherit;
     cursor: pointer;
     transition: all 0.2s ease;
+    appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg width='12' height='8' viewBox='0 0 12 8' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1.5L6 6.5L11 1.5' stroke='%23a8a3ff' stroke-width='2' stroke-linecap='round'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 12px center;
+    padding-right: 36px;
 }
 
 .model-selector:hover:not(:disabled) {
-    border-color: rgba(124, 92, 255, 0.5);
-    background: rgba(15, 13, 30, 0.8);
+    border-color: rgba(124, 92, 255, 0.6);
+    background-color: rgba(15, 13, 30, 0.85);
 }
 
 .model-selector:focus {
     outline: none;
-    border-color: rgba(124, 92, 255, 0.8);
-    box-shadow: 0 0 0 3px rgba(124, 92, 255, 0.2);
+    border-color: rgba(124, 92, 255, 0.9);
+    box-shadow: 0 0 0 3px rgba(124, 92, 255, 0.15);
 }
 
 .model-selector:disabled {
-    opacity: 0.6;
+    opacity: 0.5;
     cursor: not-allowed;
 }
 
 .model-selector option {
     background: #0f0d1e;
     color: rgba(237, 236, 255, 0.95);
+    padding: 8px;
 }
 
 .model-output {

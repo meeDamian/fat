@@ -9,33 +9,67 @@
 <body>
     <div class="app-shell">
         <header class="hero">
-            <div class="badge">⚡️ Multi-Agent Collaboration</div>
-            <h1>FAT Collective Intelligence Lab</h1>
-            <p>Launch a coordinated debate between frontier models. Watch them iterate, challenge, and converge on the strongest answer.</p>
+            <h1>FAT</h1>
+            <p class="tagline">Four AIs debate. You decide the winner.</p>
         </header>
 
         <main class="workspace">
             <section class="control-panel" aria-label="Question controls">
                 <div class="control-inputs">
-                    <label for="questionInput" class="input-label">Ask a question</label>
                     <div class="input-wrapper">
-                        <input type="text" id="questionInput" placeholder="e.g. Devise a sustainable lunar habitat strategy" autocomplete="off" />
+                        <textarea id="questionInput" placeholder="Ask a question..." rows="3" autocomplete="off"></textarea>
                         <button id="submitBtn" class="primary-btn">Launch Discussion</button>
                     </div>
+                    <div class="control-footer">
+                        <div class="spacer"></div>
+                        <a href="#" id="toggleConfig" class="toggle-config-link">⚙️ Configure</a>
+                    </div>
                 </div>
-                <div class="control-settings">
-                    <label for="roundsSelect">Rounds</label>
-                    <select id="roundsSelect">
-                        <option value="3" selected>3</option>
-                        <option value="4">4</option>
-                        <option value="5">5</option>
-                        <option value="6">6</option>
-                        <option value="7">7</option>
-                        <option value="8">8</option>
-                        <option value="9">9</option>
-                        <option value="10">10</option>
+            </section>
+
+            <!-- Configuration Panel (hidden by default) -->
+            <section id="modelConfig" class="model-config hidden">
+                <div class="config-section">
+                    <h3>Models</h3>
+                    <div class="model-config-grid">
+                        <div class="model-config-item">
+                            <label><strong>Grok</strong> <span class="provider-tag">xAI</span></label>
+                            <select class="model-selector" id="grok-selector" data-family="grok">
+                                <option value="">Loading...</option>
+                            </select>
+                        </div>
+                        <div class="model-config-item">
+                            <label><strong>GPT</strong> <span class="provider-tag">OpenAI</span></label>
+                            <select class="model-selector" id="gpt-selector" data-family="gpt">
+                                <option value="">Loading...</option>
+                            </select>
+                        </div>
+                        <div class="model-config-item">
+                            <label><strong>Claude</strong> <span class="provider-tag">Anthropic</span></label>
+                            <select class="model-selector" id="claude-selector" data-family="claude">
+                                <option value="">Loading...</option>
+                            </select>
+                        </div>
+                        <div class="model-config-item">
+                            <label><strong>Gemini</strong> <span class="provider-tag">Google</span></label>
+                            <select class="model-selector" id="gemini-selector" data-family="gemini">
+                                <option value="">Loading...</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+                <div class="config-section">
+                    <h3>Rounds</h3>
+                    <select id="roundsSelect" class="model-selector">
+                        <option value="3" selected>3 rounds</option>
+                        <option value="4">4 rounds</option>
+                        <option value="5">5 rounds</option>
+                        <option value="6">6 rounds</option>
+                        <option value="7">7 rounds</option>
+                        <option value="8">8 rounds</option>
+                        <option value="9">9 rounds</option>
+                        <option value="10">10 rounds</option>
                     </select>
-                    <div class="status-chip" id="status">Awaiting prompt</div>
                 </div>
             </section>
 
@@ -44,13 +78,8 @@
                 <div class="models-grid">
                     <article class="model-card" id="grok" data-model="grok">
                         <header>
-                            <div class="model-header-top">
-                                <span class="model-name">Grok</span>
-                                <span class="model-provider">xAI</span>
-                            </div>
-                            <select class="model-selector" id="grok-selector" data-family="grok">
-                                <option value="">Loading...</option>
-                            </select>
+                            <span class="model-name">Grok</span>
+                            <span class="model-provider">xAI</span>
                         </header>
                         <div class="round-progress" data-model="grok"></div>
                         <div class="model-output" id="grok-output">
@@ -59,13 +88,8 @@
                     </article>
                     <article class="model-card" id="gpt" data-model="gpt">
                         <header>
-                            <div class="model-header-top">
-                                <span class="model-name">GPT</span>
-                                <span class="model-provider">OpenAI</span>
-                            </div>
-                            <select class="model-selector" id="gpt-selector" data-family="gpt">
-                                <option value="">Loading...</option>
-                            </select>
+                            <span class="model-name">GPT</span>
+                            <span class="model-provider">OpenAI</span>
                         </header>
                         <div class="round-progress" data-model="gpt"></div>
                         <div class="model-output" id="gpt-output">
@@ -74,13 +98,8 @@
                     </article>
                     <article class="model-card" id="claude" data-model="claude">
                         <header>
-                            <div class="model-header-top">
-                                <span class="model-name">Claude</span>
-                                <span class="model-provider">Anthropic</span>
-                            </div>
-                            <select class="model-selector" id="claude-selector" data-family="claude">
-                                <option value="">Loading...</option>
-                            </select>
+                            <span class="model-name">Claude</span>
+                            <span class="model-provider">Anthropic</span>
                         </header>
                         <div class="round-progress" data-model="claude"></div>
                         <div class="model-output" id="claude-output">
@@ -89,13 +108,8 @@
                     </article>
                     <article class="model-card" id="gemini" data-model="gemini">
                         <header>
-                            <div class="model-header-top">
-                                <span class="model-name">Gemini</span>
-                                <span class="model-provider">Google</span>
-                            </div>
-                            <select class="model-selector" id="gemini-selector" data-family="gemini">
-                                <option value="">Loading...</option>
-                            </select>
+                            <span class="model-name">Gemini</span>
+                            <span class="model-provider">Google</span>
                         </header>
                         <div class="round-progress" data-model="gemini"></div>
                         <div class="model-output" id="gemini-output">

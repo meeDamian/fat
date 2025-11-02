@@ -1,9 +1,12 @@
 const questionInput = document.getElementById('questionInput');
 const roundsSelect = document.getElementById('roundsSelect');
 const submitBtn = document.getElementById('submitBtn');
-const statusEl = document.getElementById('status');
 const conversationBoard = document.getElementById('conversationBoard');
 const finalResult = document.getElementById('finalResult');
+const toggleConfigLink = document.getElementById('toggleConfig');
+const modelConfig = document.getElementById('modelConfig');
+const controlPanel = document.querySelector('.control-panel');
+const hero = document.querySelector('.hero');
 
 const cardElements = {
     grok: document.getElementById('grok'),
@@ -173,10 +176,8 @@ function initWebSocket() {
             conversationBoard.classList.remove('hidden');
             finalResult.classList.add('hidden');
             finalResult.textContent = '';
-            statusEl.textContent = 'Ready for collaboration';
-            submitBtn.textContent = 'Launch Discussion';
+            submitBtn.textContent = 'Starting...';
         } else if (data.type === 'round_start') {
-            statusEl.textContent = `Round ${data.round} of ${data.total}`;
             submitBtn.textContent = `Round ${data.round}/${data.total}`;
             Object.values(cardElements).forEach(card => card.classList.add('loading'));
             ensureRounds(data.total);
@@ -206,11 +207,12 @@ function initWebSocket() {
                 output.textContent = 'Processing...';
             }
         } else if (data.type === 'ranking_start') {
-            statusEl.textContent = 'Ranking Models...';
-            submitBtn.textContent = 'Ranking Models...';
+            submitBtn.textContent = 'Ranking...';
         } else if (data.type === 'winner') {
             Object.values(cardElements).forEach(card => card.classList.remove('loading'));
-            const winnerElement = cardElements[data.model];
+            
+            // Handle winner
+            const winnerElement = data.model ? cardElements[data.model] : null;
             if (winnerElement) {
                 winnerElement.classList.add('winner');
             }
@@ -221,8 +223,7 @@ function initWebSocket() {
                 runnerUpElement.classList.add('runner-up');
             }
             
-            statusEl.textContent = 'Complete! Winner selected';
-            submitBtn.textContent = 'Complete!';
+            submitBtn.textContent = '✓ Complete';
             submitBtn.disabled = false;
             setSelectorsEnabled(true);
             finalResult.classList.remove('hidden');
@@ -249,6 +250,12 @@ submitBtn.addEventListener('click', async function() {
     const question = questionInput.value.trim();
     if (!question) return;
 
+    // Transition to compact mode
+    controlPanel.classList.remove('initial');
+    hero.classList.add('compact');
+    modelConfig.classList.add('hidden');
+    toggleConfigLink.textContent = '⚙️ Configure';
+
     conversationBoard.classList.remove('hidden');
     finalResult.classList.add('hidden');
     finalResult.textContent = '';
@@ -261,8 +268,7 @@ submitBtn.addEventListener('click', async function() {
     });
 
     submitBtn.disabled = true;
-    submitBtn.textContent = 'Starting...';
-    statusEl.textContent = 'Connecting to models...';
+    submitBtn.textContent = 'Processing...';
     
     // Lock model selectors
     setSelectorsEnabled(false);
@@ -286,13 +292,15 @@ submitBtn.addEventListener('click', async function() {
             output.textContent = 'Failed to send question';
         });
         submitBtn.disabled = false;
-        submitBtn.textContent = 'Ask Models';
+        submitBtn.textContent = 'Launch Discussion';
         setSelectorsEnabled(true);
     }
 });
 
-questionInput.addEventListener('keypress', function(e) {
-    if (e.key === 'Enter') {
+questionInput.addEventListener('keydown', function(e) {
+    // Cmd/Ctrl + Enter to submit
+    if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+        e.preventDefault();
         submitBtn.click();
     }
 });
@@ -324,7 +332,7 @@ async function loadModels() {
             sortedVariants.forEach(variant => {
                 const option = document.createElement('option');
                 option.value = variant.key;
-                option.textContent = `${variant.name} (${(variant.maxTok / 1000).toFixed(0)}K)`;
+                option.textContent = variant.name;
                 selector.appendChild(option);
             });
             
@@ -358,6 +366,18 @@ function getSelectedModels() {
     });
     return selected;
 }
+
+// Toggle configuration panel
+toggleConfigLink.addEventListener('click', function(e) {
+    e.preventDefault();
+    modelConfig.classList.toggle('hidden');
+    toggleConfigLink.textContent = modelConfig.classList.contains('hidden') 
+        ? '⚙️ Configure' 
+        : '✕ Close';
+});
+
+// Set initial state
+controlPanel.classList.add('initial');
 
 // Initialize WebSocket connection
 prefillRandomQuestion(true);

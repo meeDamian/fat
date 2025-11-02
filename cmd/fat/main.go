@@ -129,9 +129,8 @@ func main() {
 			variants := make([]gin.H, 0, len(family.Variants))
 			for variantKey, variant := range family.Variants {
 				variants = append(variants, gin.H{
-					"key":     variantKey,
-					"name":    variant.Name,
-					"maxTok":  variant.MaxTok,
+					"key":  variantKey,
+					"name": variant.Name,
 				})
 			}
 			
