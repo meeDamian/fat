@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"math/rand"
 	"net/http"
 	"os"
 	"strings"
@@ -16,6 +17,7 @@ import (
 	"github.com/gorilla/websocket"
 	"github.com/joho/godotenv"
 	"github.com/meedamian/fat/internal/config"
+	"github.com/meedamian/fat/internal/constants"
 	"github.com/meedamian/fat/internal/db"
 	"github.com/meedamian/fat/internal/metrics"
 	"github.com/meedamian/fat/internal/models"
@@ -119,6 +121,44 @@ func main() {
 		})
 	})
 
+	// Models endpoint - returns available model variants for each family
+	r.GET("/models", func(c *gin.Context) {
+		familiesData := make(map[string]gin.H)
+		
+		for familyID, family := range models.ModelFamilies {
+			variants := make([]gin.H, 0, len(family.Variants))
+			for variantKey, variant := range family.Variants {
+				variants = append(variants, gin.H{
+					"key":     variantKey,
+					"name":    variant.Name,
+					"maxTok":  variant.MaxTok,
+				})
+			}
+			
+			// Get the active/default variant for this family
+			activeVariant := models.ActiveModels[familyID]
+			
+			familiesData[familyID] = gin.H{
+				"id":       family.ID,
+				"provider": family.Provider,
+				"variants": variants,
+				"active":   activeVariant,
+			}
+		}
+		
+		c.JSON(200, familiesData)
+	})
+
+	// Random question endpoint - returns a single random sample question
+	r.GET("/question/random", func(c *gin.Context) {
+		if len(constants.SampleQuestions) == 0 {
+			c.JSON(200, gin.H{"question": ""})
+			return
+		}
+		randomIndex := rand.Intn(len(constants.SampleQuestions))
+		c.JSON(200, gin.H{"question": constants.SampleQuestions[randomIndex]})
+	})
+
 	appLogger.Info("starting server", slog.String("addr", appConfig.ServerAddress))
 	if err := r.Run(appConfig.ServerAddress); err != nil {
 		appLogger.Error("server exited with error", slog.Any("error", err))
@@ -188,19 +228,6 @@ func handleWebSocket(c *gin.Context) {
 		conn.Close()
 	}()
 
-	// Filter models - include all by default for web version
-	activeModels := []*types.ModelInfo{}
-	for _, mi := range models.AllModels {
-		activeModels = append(activeModels, mi)
-	}
-
-	// Check keys for active models
-	for _, mi := range activeModels {
-		if mi.APIKey == "" {
-			appLogger.Warn("api key missing for model", slog.String("model", mi.Name))
-		}
-	}
-
 	for {
 		var msg map[string]any
 		err := conn.ReadJSON(&msg)
@@ -216,12 +243,12 @@ func handleWebSocket(c *gin.Context) {
 
 		switch msgType {
 		case "question":
-			handleQuestionWS(conn, ctx, activeModels, msg)
+			handleQuestionWS(conn, ctx, msg)
 		}
 	}
 }
 
-func handleQuestionWS(conn *websocket.Conn, ctx context.Context, activeModels []*types.ModelInfo, msg map[string]any) {
+func handleQuestionWS(conn *websocket.Conn, ctx context.Context, msg map[string]any) {
 	question, ok := msg["question"].(string)
 	if !ok || question == "" {
 		conn.WriteJSON(map[string]any{
@@ -235,6 +262,54 @@ func handleQuestionWS(conn *websocket.Conn, ctx context.Context, activeModels []
 	rounds := int(roundsFloat)
 	if !ok || rounds < 3 || rounds > 10 {
 		rounds = 3 // Default to 3 rounds
+	}
+
+	// Build activeModels from selected models in the message
+	selectedModels, _ := msg["models"].(map[string]any)
+	activeModels := []*types.ModelInfo{}
+	
+	for familyID, family := range models.ModelFamilies {
+		var variantKey string
+		
+		// Get selected variant from message, or use default from ActiveModels
+		if selectedModels != nil {
+			if selected, ok := selectedModels[familyID].(string); ok && selected != "" {
+				variantKey = selected
+			}
+		}
+		if variantKey == "" {
+			variantKey = models.ActiveModels[familyID]
+		}
+		
+		// Get variant details
+		variant, ok := family.Variants[variantKey]
+		if !ok {
+			appLogger.Warn("unknown variant for family", 
+				slog.String("family", familyID),
+				slog.String("variant", variantKey))
+			continue
+		}
+		
+		// Build ModelInfo for this selection
+		mi := &types.ModelInfo{
+			ID:      family.ID,
+			Name:    variant.Name,
+			MaxTok:  variant.MaxTok,
+			BaseURL: family.BaseURL,
+			Logger:  appLogger.With("model", variant.Name),
+			RequestTimeout: appConfig.ModelRequestTimeout,
+		}
+		
+		// Load API key for this family
+		if apiKey := getAPIKeyForFamily(familyID); apiKey != "" {
+			mi.APIKey = apiKey
+		} else {
+			appLogger.Warn("api key missing for model", 
+				slog.String("family", familyID),
+				slog.String("model", variant.Name))
+		}
+		
+		activeModels = append(activeModels, mi)
 	}
 
 	questionTS := time.Now().Unix()
@@ -251,6 +326,39 @@ func handleQuestionWS(conn *websocket.Conn, ctx context.Context, activeModels []
 	go func() {
 		processQuestion(ctx, question, rounds, activeModels, questionTS)
 	}()
+}
+
+// getAPIKeyForFamily retrieves the API key for a model family
+func getAPIKeyForFamily(familyID string) string {
+	familyEnvVars := map[string]string{
+		models.Grok:   "GROK_KEY",
+		models.GPT:    "GPT_KEY",
+		models.Claude: "CLAUDE_KEY",
+		models.Gemini: "GEMINI_KEY",
+	}
+	
+	envVar, ok := familyEnvVars[familyID]
+	if !ok {
+		return ""
+	}
+	
+	// Try environment variable
+	if key := os.Getenv(envVar); key != "" {
+		return key
+	}
+	
+	// Try keys.json
+	if file, err := os.Open("keys.json"); err == nil {
+		defer file.Close()
+		var keys map[string]string
+		if json.NewDecoder(file).Decode(&keys) == nil {
+			if key, ok := keys[familyID]; ok {
+				return key
+			}
+		}
+	}
+	
+	return ""
 }
 
 func processQuestion(ctx context.Context, question string, numRounds int, activeModels []*types.ModelInfo, questionTS int64) {
