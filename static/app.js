@@ -28,11 +28,105 @@ const statusIndicators = {
     deepseek: cardElements.deepseek?.querySelector('.model-status') || null
 };
 
+const costIndicators = {
+    grok: document.querySelector('.model-cost[data-model="grok"]'),
+    gpt: document.querySelector('.model-cost[data-model="gpt"]'),
+    claude: document.querySelector('.model-cost[data-model="claude"]'),
+    gemini: document.querySelector('.model-cost[data-model="gemini"]'),
+    deepseek: document.querySelector('.model-cost[data-model="deepseek"]')
+};
+
+// Track cumulative costs per model for current request
+const modelCosts = {
+    grok: 0,
+    gpt: 0,
+    claude: 0,
+    gemini: 0,
+    deepseek: 0
+};
+
 function setCardStatus(model, icon = '') {
     const indicator = statusIndicators[model];
     if (!indicator) return;
     indicator.textContent = icon;
     indicator.classList.toggle('visible', Boolean(icon));
+}
+
+function formatCost(cost) {
+    if (cost < 0.01) {
+        // Less than $0.01 - show in cents with ¢ symbol
+        const cents = cost * 100;
+        // Remove trailing zeros after decimal point
+        return `${cents.toFixed(4).replace(/\.?0+$/, '')}¢`;
+    } else {
+        // $0.01 or more - show in dollars
+        return `$${cost.toFixed(2)}`;
+    }
+}
+
+function updateCostIndicator(model, additionalCost) {
+    modelCosts[model] += additionalCost;
+    const indicator = costIndicators[model];
+    if (indicator) {
+        indicator.textContent = formatCost(modelCosts[model]);
+        indicator.classList.add('visible');
+        updateCostColors();
+    }
+}
+
+function updateCostColors() {
+    // Get all non-zero costs
+    const costs = Object.values(modelCosts).filter(c => c > 0);
+    if (costs.length === 0) return;
+    
+    const minCost = Math.min(...costs);
+    const maxCost = Math.max(...costs);
+    const range = maxCost - minCost;
+    
+    // Apply gradient colors to each model
+    for (const model in modelCosts) {
+        const cost = modelCosts[model];
+        if (cost === 0) continue;
+        
+        const indicator = costIndicators[model];
+        if (!indicator) continue;
+        
+        // Calculate position in range (0 = cheapest, 1 = most expensive)
+        const position = range === 0 ? 0 : (cost - minCost) / range;
+        
+        // Green -> Yellow -> Red gradient
+        let r, g, b;
+        if (position < 0.5) {
+            // Green to Yellow (0 to 0.5)
+            const t = position * 2; // 0 to 1
+            r = Math.round(129 + (255 - 129) * t); // 129 to 255
+            g = Math.round(199 + (235 - 199) * t); // 199 to 235
+            b = Math.round(132 * (1 - t)); // 132 to 0
+        } else {
+            // Yellow to Red (0.5 to 1)
+            const t = (position - 0.5) * 2; // 0 to 1
+            r = 255;
+            g = Math.round(235 * (1 - t)); // 235 to 0
+            b = 0;
+        }
+        
+        // Apply colors
+        indicator.style.backgroundColor = `rgba(${r}, ${g}, ${b}, 0.2)`;
+        indicator.style.color = `rgb(${r}, ${g}, ${b})`;
+    }
+}
+
+function resetCosts() {
+    for (const model in modelCosts) {
+        modelCosts[model] = 0;
+        const indicator = costIndicators[model];
+        if (indicator) {
+            indicator.textContent = '';
+            indicator.classList.remove('visible');
+            indicator.style.backgroundColor = '';
+            indicator.style.color = '';
+        }
+    }
 }
 
 const outputs = {
@@ -219,6 +313,7 @@ function initWebSocket() {
         if (data.type === 'clear') {
             const total = parseInt(roundsSelect.value, 10) || 1;
             resetModelStates(total);
+            resetCosts();
             prefillRandomQuestion();
             Object.entries(outputs).forEach(([model, output]) => {
                 output.innerHTML = '<p class="placeholder">Responses will appear here once the collaboration begins.</p>';
@@ -244,6 +339,11 @@ function initWebSocket() {
                 markRoundCompleted(data.model, data.round, data.response, data.rationale, data.discussion);
                 showRoundResponse(data.model, data.round);
                 setActiveDot(data.model, data.round);
+                
+                // Update cost if provided
+                if (data.cost !== undefined) {
+                    updateCostIndicator(data.model, data.cost);
+                }
                 
                 // Update discussions section if there are any discussions
                 if (data.discussion && Object.keys(data.discussion).length > 0) {
@@ -393,11 +493,14 @@ async function loadModels() {
             // Sort variants by name for consistent ordering
             const sortedVariants = familyData.variants.sort((a, b) => a.name.localeCompare(b.name));
             
-            // Add options
+            // Add options with pricing
             sortedVariants.forEach(variant => {
                 const option = document.createElement('option');
                 option.value = variant.key;
-                option.textContent = variant.name;
+                // Format: model-name ($X/$Y)
+                const priceIn = variant.rate_in ? `$${variant.rate_in.toFixed(2)}` : '$0.00';
+                const priceOut = variant.rate_out ? `$${variant.rate_out.toFixed(2)}` : '$0.00';
+                option.textContent = `${variant.name} (${priceIn}/${priceOut})`;
                 selector.appendChild(option);
             });
             

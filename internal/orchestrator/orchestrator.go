@@ -143,13 +143,16 @@ func (o *Orchestrator) ProcessQuestion(
 				}
 
 				o.broadcaster.Broadcast(map[string]any{
-					"type":       "response",
-					"model":      result.modelID,
-					"round":      round + 1,
-					"response":   result.reply.Answer,
-					"rationale":  result.reply.Rationale,
-					"discussion": result.reply.Discussion,
-					"request_id": requestID,
+					"type":        "response",
+					"model":       result.modelID,
+					"round":       round + 1,
+					"response":    result.reply.Answer,
+					"rationale":   result.reply.Rationale,
+					"discussion":  result.reply.Discussion,
+					"tokens_in":   result.tokensIn,
+					"tokens_out":  result.tokensOut,
+					"cost":        result.cost,
+					"request_id":  requestID,
 				})
 			}
 		}
@@ -184,9 +187,12 @@ func (o *Orchestrator) ProcessQuestion(
 }
 
 type callResult struct {
-	modelID string
-	reply   types.Reply
-	err     error
+	modelID  string
+	reply    types.Reply
+	tokensIn int64
+	tokensOut int64
+	cost     float64
+	err      error
 }
 
 func (o *Orchestrator) parallelCall(
@@ -280,9 +286,16 @@ func (o *Orchestrator) parallelCall(
 				mi.Logger.Warn("failed to log conversation", slog.Any("error", err))
 			}
 
+			// Calculate cost
+			rate := getRateForModel(mi)
+			cost := (float64(result.TokIn)*rate.In + float64(result.TokOut)*rate.Out) / 1_000_000
+
 			results <- callResult{
-				modelID: mi.ID,
-				reply:   result.Reply,
+				modelID:   mi.ID,
+				reply:     result.Reply,
+				tokensIn:  result.TokIn,
+				tokensOut: result.TokOut,
+				cost:      cost,
 			}
 		}(mi)
 	}

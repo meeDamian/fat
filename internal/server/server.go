@@ -117,8 +117,10 @@ func (s *Server) Run() error {
 			variants := make([]gin.H, 0, len(family.Variants))
 			for variantKey, variant := range family.Variants {
 				variants = append(variants, gin.H{
-					"key":  variantKey,
-					"name": variant.Name,
+					"key":     variantKey,
+					"name":    variant.Name,
+					"rate_in": variant.Rate.In,
+					"rate_out": variant.Rate.Out,
 				})
 			}
 

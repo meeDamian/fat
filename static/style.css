@@ -539,11 +539,9 @@ body {
 
 
 .model-card header {
-    display: grid;
-    grid-template-columns: 1fr auto auto;
+    display: flex;
     align-items: center;
-    column-gap: 12px;
-    margin-bottom: 16px;
+    gap: 8px;
 }
 
 .model-status {
@@ -561,6 +559,26 @@ body {
 .model-name {
     font-weight: 600;
     font-size: 18px;
+    flex: 1;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+.model-cost {
+    display: none;
+    font-size: 12px;
+    padding: 3px 8px;
+    border-radius: 999px;
+    background: rgba(76, 175, 80, 0.2);
+    color: rgba(129, 199, 132, 1);
+    font-weight: 500;
+    font-family: 'SF Mono', 'Monaco', 'Consolas', monospace;
+}
+
+.model-cost.visible {
+    display: inline-block;
+    margin-left: auto;
 }
 
 .model-provider {
@@ -568,6 +586,7 @@ body {
     padding: 4px 10px;
     border-radius: 999px;
     background: rgba(255, 255, 255, 0.12);
+    white-space: nowrap;
 }
 
 .model-selector {
