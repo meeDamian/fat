@@ -32,18 +32,75 @@ func FormatPrompt(modelID, modelName, question string, meta types.Meta, replies 
 		if len(replies) == 0 {
 			b.WriteString("(No replies available)\n\n")
 		} else {
-			agentNames := make([]string, 0, len(replies))
-			for name := range replies {
-				agentNames = append(agentNames, name)
+			// Show own previous answer first (replies map uses modelID as key)
+			if ownReply, hasOwn := replies[modelID]; hasOwn {
+				answer := strings.TrimSpace(ownReply.Answer)
+				if answer == "" {
+					answer = "(No answer provided)"
+				}
+				b.WriteString(fmt.Sprintf("## Your previous answer (%s)\n\n", modelName))
+				b.WriteString(answer)
+				b.WriteString("\n\n")
+
+				// Include rationale if provided
+				if strings.TrimSpace(ownReply.Rationale) != "" {
+					b.WriteString(fmt.Sprintf("### Rationale\n\n%s\n\n", strings.TrimSpace(ownReply.Rationale)))
+				}
 			}
-			sort.Strings(agentNames)
-			for _, agent := range agentNames {
-				reply := replies[agent]
+
+			// Show other agents' answers
+			agentIDs := make([]string, 0, len(replies))
+			for agentID := range replies {
+				if agentID != modelID {
+					agentIDs = append(agentIDs, agentID)
+				}
+			}
+			sort.Strings(agentIDs)
+			
+			// Map short IDs to display names
+			idToDisplayName := map[string]string{
+				"grok":   "Grok",
+				"gpt":    "GPT",
+				"claude": "Claude",
+				"gemini": "Gemini",
+			}
+			
+			// Build a map of agentID -> full model name from OtherAgents
+			agentIDToFullName := make(map[string]string)
+			for _, fullName := range meta.OtherAgents {
+				// Match by checking if the full name contains the agent ID pattern
+				lowerFullName := strings.ToLower(fullName)
+				if strings.Contains(lowerFullName, "grok") {
+					agentIDToFullName["grok"] = fullName
+				} else if strings.Contains(lowerFullName, "gpt") {
+					agentIDToFullName["gpt"] = fullName
+				} else if strings.Contains(lowerFullName, "claude") {
+					agentIDToFullName["claude"] = fullName
+				} else if strings.Contains(lowerFullName, "gemini") {
+					agentIDToFullName["gemini"] = fullName
+				}
+			}
+			
+			for _, agentID := range agentIDs {
+				reply := replies[agentID]
 				answer := strings.TrimSpace(reply.Answer)
 				if answer == "" {
 					answer = "(No answer provided)"
 				}
-				b.WriteString(fmt.Sprintf("## %s\n\n%s\n\n", agent, answer))
+				
+				// Get display name for this agent
+				displayName := idToDisplayName[agentID]
+				if displayName == "" {
+					displayName = agentID
+				}
+				
+				// Get full model name
+				fullModelName := agentIDToFullName[agentID]
+				if fullModelName == "" {
+					fullModelName = agentID
+				}
+				
+				b.WriteString(fmt.Sprintf("## %s (%s)\n\n%s\n\n", displayName, fullModelName, answer))
 
 				// Include rationale if provided
 				if strings.TrimSpace(reply.Rationale) != "" {
@@ -113,7 +170,11 @@ func FormatPrompt(modelID, modelName, question string, meta types.Meta, replies 
 		b.WriteString("- Addressing feedback directed at you\n")
 		b.WriteString("- Maintaining your core perspective while filling gaps\n")
 		b.WriteString("- NOT simply copying other agents' work\n\n")
-		b.WriteString("Provide 1-2 discussion messages (20-50 words each) to agents whose answers could benefit from your expertise.\n\n")
+		b.WriteString("In DISCUSSION messages:\n")
+		b.WriteString("- Point out logical flaws, contradictions, or reasoning errors\n")
+		b.WriteString("- Challenge assumptions that don't align with the question context\n")
+		b.WriteString("- Identify when agents suggest things already present in the discussion\n")
+		b.WriteString("- Provide 1-2 specific, actionable messages (20-50 words each)\n\n")
 	}
 
 	b.WriteString("--- RESPONSE FORMAT ---\n\n")
@@ -131,9 +192,11 @@ func FormatPrompt(modelID, modelName, question string, meta types.Meta, replies 
 
 	b.WriteString("# RATIONALE\n\n")
 	if meta.Round == 1 {
-		b.WriteString("(Optional) Brief explanation of your approach or reasoning\n\n")
+		b.WriteString("(Optional) Brief explanation of your approach or reasoning\n")
+		b.WriteString("⚠️  Use EXACTLY '# RATIONALE' (single #), NOT '### Rationale' or any other format\n\n")
 	} else {
-		b.WriteString("(Optional) Brief explanation of changes made (e.g., \"Added economic data from GPT's suggestion\")\n\n")
+		b.WriteString("(Optional) Brief explanation of changes made (e.g., \"Added economic data from GPT's suggestion\")\n")
+		b.WriteString("⚠️  Use EXACTLY '# RATIONALE' (single #), NOT '### Rationale' or any other format\n\n")
 	}
 
 	if meta.Round > 1 {
@@ -171,6 +234,7 @@ func ParseResponse(content string) types.Reply {
 		trimmed := strings.TrimSpace(line)
 
 		// Check for # ANSWER, # RATIONALE, # DISCUSSION headings
+		// Also handle common mistakes like ### Rationale
 		if strings.HasPrefix(trimmed, "# ") {
 			// Save previous section
 			if currentSection != "" {
@@ -191,6 +255,29 @@ func ParseResponse(content string) types.Reply {
 				currentSection = ""
 			}
 			continue
+		}
+
+		// Handle common formatting mistakes: ### Rationale, ### Answer, etc.
+		if strings.HasPrefix(trimmed, "### ") {
+			heading := strings.ToUpper(strings.TrimSpace(trimmed[4:]))
+			if heading == "RATIONALE" || heading == "ANSWER" || heading == "DISCUSSION" {
+				// Save previous section
+				if currentSection != "" {
+					saveSection(&reply, currentSection, strings.Join(sectionLines, "\n"), currentAgent)
+					sectionLines = nil
+					currentAgent = ""
+				}
+
+				switch heading {
+				case "ANSWER":
+					currentSection = "answer"
+				case "RATIONALE":
+					currentSection = "rationale"
+				case "DISCUSSION":
+					currentSection = "discussion"
+				}
+				continue
+			}
 		}
 
 		// Check for ## With AgentName in discussion section
