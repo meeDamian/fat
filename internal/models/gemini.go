@@ -56,11 +56,17 @@ func (m *GeminiModel) Prompt(ctx context.Context, question string, meta types.Me
 	content := result.Text()
 	reply := shared.ParseResponse(content)
 
-	// Gemini doesn't provide token usage, so we estimate or set to 0
+	// Extract token usage from UsageMetadata
+	var tokIn, tokOut int64
+	if result.UsageMetadata != nil {
+		tokIn = int64(result.UsageMetadata.PromptTokenCount)
+		tokOut = int64(result.UsageMetadata.CandidatesTokenCount)
+	}
+
 	return types.ModelResult{
 		Reply:  reply,
-		TokIn:  0, // Not available from Gemini API
-		TokOut: 0, // Not available from Gemini API
+		TokIn:  tokIn,
+		TokOut: tokOut,
 		Prompt: prompt,
 	}, nil
 }

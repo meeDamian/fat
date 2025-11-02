@@ -301,11 +301,19 @@ async function prefillRandomQuestion(force = false) {
     }
 }
 
+const connectionStatus = document.getElementById('connectionStatus');
+
+function updateConnectionStatus(status) {
+    connectionStatus.className = 'connection-status ' + status;
+}
+
 function initWebSocket() {
+    updateConnectionStatus('connecting');
     ws = new WebSocket('ws://localhost:4444/ws');
 
     ws.onopen = function(event) {
         console.log('WebSocket connected');
+        updateConnectionStatus('connected');
     };
 
     ws.onmessage = function(event) {
@@ -401,11 +409,13 @@ function initWebSocket() {
 
     ws.onclose = function(event) {
         console.log('WebSocket closed, reconnecting...');
+        updateConnectionStatus('disconnected');
         setTimeout(initWebSocket, 1000);
     };
 
     ws.onerror = function(error) {
         console.error('WebSocket error:', error);
+        updateConnectionStatus('disconnected');
     };
 }
 

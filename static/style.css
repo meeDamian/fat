@@ -29,6 +29,65 @@ body {
     min-height: 100vh;
 }
 
+.connection-status {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    background: rgba(15, 13, 30, 0.8);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 20px;
+    backdrop-filter: blur(10px);
+}
+
+.status-led {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: #666;
+    box-shadow: 0 0 0 2px rgba(102, 102, 102, 0.2);
+    transition: all 0.3s ease;
+}
+
+.connection-status.connected .status-led {
+    background: #4caf50;
+    box-shadow: 0 0 0 2px rgba(76, 175, 80, 0.3), 0 0 10px rgba(76, 175, 80, 0.5);
+    animation: pulse-green 2s ease-in-out infinite;
+}
+
+.connection-status.disconnected .status-led {
+    background: #f44336;
+    box-shadow: 0 0 0 2px rgba(244, 67, 54, 0.3), 0 0 10px rgba(244, 67, 54, 0.5);
+}
+
+.connection-status.connecting .status-led {
+    background: #ff9800;
+    box-shadow: 0 0 0 2px rgba(255, 152, 0, 0.3), 0 0 10px rgba(255, 152, 0, 0.5);
+    animation: pulse-orange 1s ease-in-out infinite;
+}
+
+@keyframes pulse-green {
+    0%, 100% {
+        box-shadow: 0 0 0 2px rgba(76, 175, 80, 0.3), 0 0 10px rgba(76, 175, 80, 0.5);
+    }
+    50% {
+        box-shadow: 0 0 0 2px rgba(76, 175, 80, 0.5), 0 0 15px rgba(76, 175, 80, 0.8);
+    }
+}
+
+@keyframes pulse-orange {
+    0%, 100% {
+        opacity: 1;
+    }
+    50% {
+        opacity: 0.5;
+    }
+}
+
 .app-shell {
     display: flex;
     flex-direction: column;
