@@ -76,7 +76,7 @@ var ModelFamilies = map[string]types.ModelFamily{
 	DeepSeek: {
 		ID:       DeepSeek,
 		Provider: "DeepSeek",
-		BaseURL:  "https://api.deepseek.com/v1/chat/completions",
+		BaseURL:  "https://api.deepseek.com/v1",
 		Variants: map[string]types.ModelVariant{
 			DeepSeekChat:  {Name: DeepSeekChat, MaxTok: 128_000},
 			DeepSeekCoder: {Name: DeepSeekCoder, MaxTok: 128_000},
@@ -89,7 +89,7 @@ var ModelFamilies = map[string]types.ModelFamily{
 var ActiveModels = map[string]string{
 	Grok:     Grok4Fast,
 	GPT:      GPT5Mini,
-	Claude:   Claude35Haiku,
+	Claude:   Claude45Haiku,
 	Gemini:   Gemini25Flash,
 	DeepSeek: DeepSeekChat,
 }
