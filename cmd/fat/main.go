@@ -654,8 +654,8 @@ func rankModels(ctx context.Context, requestID, question string, replies map[str
 				return
 			}
 
-			// Parse ranking from response
-			ranking := shared.ParseRanking(result.Reply.RawContent)
+			// Parse ranking from response (pass prompt to decode anonymized letters)
+			ranking := shared.ParseRanking(result.Reply.RawContent, prompt)
 
 			// Log ranking
 			if err := utils.Log(questionTS, "rank", mi.Name, prompt, result.Reply.RawContent); err != nil {

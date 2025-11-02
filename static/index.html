@@ -10,7 +10,7 @@
     <div class="app-shell">
         <header class="hero">
             <h1>FAT</h1>
-            <p class="tagline">Four AIs debate. You decide the winner.</p>
+            <p class="tagline">Four AIs debate. They decide the winner.</p>
         </header>
 
         <main class="workspace">
@@ -60,16 +60,10 @@
                 </div>
                 <div class="config-section">
                     <h3>Rounds</h3>
-                    <select id="roundsSelect" class="model-selector">
-                        <option value="3" selected>3 rounds</option>
-                        <option value="4">4 rounds</option>
-                        <option value="5">5 rounds</option>
-                        <option value="6">6 rounds</option>
-                        <option value="7">7 rounds</option>
-                        <option value="8">8 rounds</option>
-                        <option value="9">9 rounds</option>
-                        <option value="10">10 rounds</option>
-                    </select>
+                    <div class="rounds-slider-container">
+                        <input type="range" id="roundsSelect" class="rounds-slider" min="3" max="10" value="3" step="1">
+                        <div class="rounds-value"><span id="roundsValue">3</span> rounds</div>
+                    </div>
                 </div>
             </section>
 

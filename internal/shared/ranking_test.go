@@ -7,15 +7,17 @@ import (
 )
 
 func TestParseRanking(t *testing.T) {
+	// Test with anonymized letters
+	prompt := `<!-- ANONYMIZATION_MAP: A=Grok B=GPT C=Claude D=Gemini -->`
 	content := `# RANKING
 
-Grok
-GPT
-Claude
-Gemini
+A
+B
+C
+D
 `
 
-	ranking := ParseRanking(content)
+	ranking := ParseRanking(content, prompt)
 
 	expected := []string{"Grok", "GPT", "Claude", "Gemini"}
 	if len(ranking) != len(expected) {
@@ -26,6 +28,19 @@ Gemini
 		if ranking[i] != agent {
 			t.Errorf("Position %d: expected %s, got %s", i, agent, ranking[i])
 		}
+	}
+	
+	// Test backwards compatibility with full names
+	contentFullNames := `# RANKING
+
+Grok
+GPT
+Claude
+Gemini
+`
+	rankingFullNames := ParseRanking(contentFullNames, "")
+	if len(rankingFullNames) != len(expected) {
+		t.Fatalf("Expected %d agents with full names, got %d", len(expected), len(rankingFullNames))
 	}
 }
 

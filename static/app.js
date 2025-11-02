@@ -379,6 +379,14 @@ toggleConfigLink.addEventListener('click', function(e) {
 // Set initial state
 controlPanel.classList.add('initial');
 
+// Rounds slider update
+const roundsSlider = document.getElementById('roundsSelect');
+const roundsValueDisplay = document.getElementById('roundsValue');
+
+roundsSlider.addEventListener('input', function() {
+    roundsValueDisplay.textContent = this.value;
+});
+
 // Initialize WebSocket connection
 prefillRandomQuestion(true);
 loadModels();
