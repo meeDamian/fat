@@ -2,22 +2,22 @@
 
 ## Quick Model Switching
 
-All model names are defined as constants in their respective files in `internal/models/`. To change which models are used:
+The project uses a hierarchical model structure with **families** (xAI, OpenAI, Anthropic, Google) and **variants** (specific models).
 
-### 1. Edit `internal/models/models.go`
+### Single Place to Change Models
 
-Change the `AllModels` map entries to use different model variants:
+Edit `internal/models/models.go` - change the `ActiveModels` map:
 
 ```go
-var AllModels = map[string]*types.ModelInfo{
-    Grok:   {ID: Grok, Name: Grok4Fast, MaxTok: 131072, BaseURL: "..."},
-    GPT:    {ID: GPT, Name: GPT5Mini, MaxTok: 16384, BaseURL: "..."},
-    Claude: {ID: Claude, Name: Claude45Sonnet, MaxTok: 200000, BaseURL: "..."},
-    Gemini: {ID: Gemini, Name: Gemini25Flash, MaxTok: 128000, BaseURL: "..."},
+var ActiveModels = map[string]string{
+    Grok:   Grok4Fast,      // Change to: Grok4FastReasoning, Grok4FastNonReasoning, GrokCodeFast1
+    GPT:    GPT5Mini,       // Change to: GPT5Nano, GPT5, etc.
+    Claude: Claude35Haiku,  // Change to: Claude45Sonnet, Claude35Sonnet, Claude3Opus
+    Gemini: Gemini25Flash,  // Change to: Gemini20Flash, Gemini25Pro
 }
 ```
 
-**Current default**: Claude 4.5 Sonnet (most capable Claude model)
+That's it! Everything else (API keys, logging, database) automatically works.
 
 ### 2. Available Model Constants
 
@@ -33,7 +33,7 @@ var AllModels = map[string]*types.ModelInfo{
 - `GPT5` - "gpt-5"
 
 **Claude** (defined in `claude.go`):
-- `Claude45Sonnet` - "claude-4-5-sonnet-20250514" ⭐ **Latest & most capable**
+- `Claude45Sonnet` - "claude-sonnet-4-5-20250929" ⭐ **Latest & most capable**
 - `Claude35Haiku` - "claude-3-5-haiku-20241022" (fastest, cheapest)
 - `Claude35Sonnet` - "claude-3-5-sonnet-20241022"
 - `Claude3Opus` - "claude-3-opus-20240229"
@@ -41,37 +41,69 @@ var AllModels = map[string]*types.ModelInfo{
 **Gemini** (defined in `gemini.go`):
 - `Gemini25Flash` - "gemini-2.5-flash"
 - `Gemini20Flash` - "gemini-2.0-flash"
-- `Gemini15Pro` - "gemini-1.5-pro"
+- `Gemini25Pro` - "gemini-2.5-pro"
 
-### 3. Example Configurations
+## Model Structure
 
-**For maximum capability** (current default):
+### ModelFamilies
+Defines all available models with common properties:
+
 ```go
-var AllModels = map[string]*types.ModelInfo{
-    Grok:   {ID: Grok, Name: Grok4FastReasoning, MaxTok: 131072, BaseURL: "..."},
-    GPT:    {ID: GPT, Name: GPT5, MaxTok: 16384, BaseURL: "..."},
-    Claude: {ID: Claude, Name: Claude45Sonnet, MaxTok: 200000, BaseURL: "..."},
-    Gemini: {ID: Gemini, Name: Gemini20Flash, MaxTok: 128000, BaseURL: "..."},
+ModelFamilies = map[string]types.ModelFamily{
+    Grok: {
+        ID:       "grok",
+        Provider: "xAI",
+        BaseURL:  "https://api.x.ai/v1/chat/completions",
+        Variants: map[string]types.ModelVariant{
+            Grok4Fast: {Name: "grok-4-fast", MaxTok: 131072},
+            // ... other variants
+        },
+    },
+    // ... other families
+}
+```
+
+### ActiveModels
+Single source of truth for which variant to use:
+
+```go
+var ActiveModels = map[string]string{
+    Grok:   Grok4Fast,
+    GPT:    GPT5Mini,
+    Claude: Claude35Haiku,
+    Gemini: Gemini25Flash,
+}
+```
+
+### Examples
+
+**For maximum capability**:
+```go
+var ActiveModels = map[string]string{
+    Grok:   Grok4FastReasoning,
+    GPT:    GPT5,
+    Claude: Claude45Sonnet,
+    Gemini: Gemini25Pro,
 }
 ```
 
 **For speed/cost optimization**:
 ```go
-var AllModels = map[string]*types.ModelInfo{
-    Grok:   {ID: Grok, Name: Grok4Fast, MaxTok: 131072, BaseURL: "..."},
-    GPT:    {ID: GPT, Name: GPT5Nano, MaxTok: 16384, BaseURL: "..."},
-    Claude: {ID: Claude, Name: Claude35Haiku, MaxTok: 200000, BaseURL: "..."},
-    Gemini: {ID: Gemini, Name: Gemini25Flash, MaxTok: 128000, BaseURL: "..."},
+var ActiveModels = map[string]string{
+    Grok:   Grok4Fast,
+    GPT:    GPT5Nano,
+    Claude: Claude35Haiku,
+    Gemini: Gemini25Flash,
 }
 ```
 
-**To run with only 2 models** (comment out the others):
+**To disable a model family** (remove from ActiveModels):
 ```go
-var AllModels = map[string]*types.ModelInfo{
-    // Grok:   {ID: Grok, Name: Grok4Fast, MaxTok: 131072, BaseURL: "..."},
-    GPT:    {ID: GPT, Name: GPT5Mini, MaxTok: 16384, BaseURL: "..."},
-    Claude: {ID: Claude, Name: Claude45Sonnet, MaxTok: 200000, BaseURL: "..."},
-    // Gemini: {ID: Gemini, Name: Gemini25Flash, MaxTok: 128000, BaseURL: "..."},
+var ActiveModels = map[string]string{
+    // Grok:   Grok4Fast,  // Disabled
+    GPT:    GPT5Mini,
+    Claude: Claude45Sonnet,
+    Gemini: Gemini25Flash,
 }
 ```
 

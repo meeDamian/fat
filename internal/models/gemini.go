@@ -12,9 +12,11 @@ import (
 const (
 	Gemini = "gemini"
 
-	Gemini25Flash = "gemini-2.5-flash"
-	Gemini20Flash = "gemini-2.0-flash"
-	Gemini25Pro   = "gemini-2.5-pro"
+	Gemini25Pro       = "gemini-2.5-pro"
+	Gemini25Flash     = "gemini-2.5-flash"
+	Gemini25FlashLite = "gemini-2.5-flash-lite"
+	Gemini20Flash     = "gemini-2.0-flash"
+	Gemini20FlashLite = "gemini-2.0-flash-lite"
 )
 
 // GeminiModel implements the Model interface for Google Gemini

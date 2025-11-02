@@ -13,16 +13,30 @@ type Rate struct {
 	Out float64 `json:"out"` // output cost per token
 }
 
-// ModelInfo contains model configuration
+// ModelVariant contains properties specific to a model variant
+type ModelVariant struct {
+	Name   string // API model name (e.g., "grok-4-fast")
+	MaxTok int64  // Max tokens for this variant
+}
+
+// ModelFamily contains common properties for a model family
+type ModelFamily struct {
+	ID       string                   // Family ID (e.g., "grok", "gpt")
+	Provider string                   // Provider name (e.g., "xAI", "OpenAI")
+	BaseURL  string                   // API endpoint
+	Variants map[string]ModelVariant  // Available model variants
+}
+
+// ModelInfo contains model configuration (runtime instance)
 type ModelInfo struct {
-	ID      string
-	Name    string
-	MaxTok  int64
-	BaseURL string
-	APIKey  string
-	Rates   Rate
-	Client  any
-	Logger  *slog.Logger
+	ID             string
+	Name           string
+	MaxTok         int64
+	BaseURL        string
+	APIKey         string
+	Rates          Rate
+	Client         any
+	Logger         *slog.Logger
 	RequestTimeout time.Duration
 }
 

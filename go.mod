@@ -10,7 +10,6 @@ require (
 	github.com/joho/godotenv v1.5.1
 	github.com/mattn/go-sqlite3 v1.14.32
 	github.com/openai/openai-go v1.12.0
-	github.com/yuin/goldmark v1.7.13
 	google.golang.org/genai v1.32.0
 )
 

@@ -13,9 +13,14 @@ import (
 const (
 	GPT = "gpt"
 
-	GPT5Nano = "gpt-5-nano"
-	GPT5Mini = "gpt-5-mini"
-	GPT5     = "gpt-5"
+	GPT5Pro   = "gpt-5-pro"
+	GPT5      = "gpt-5"
+	GPT5Mini  = "gpt-5-mini"
+	GPT5Nano  = "gpt-5-nano"
+	GPT5Codex = "gpt-5-codex"
+	GPT41     = "gpt-4.1"
+	GPT41Mini = "gpt-4.1-mini"
+	GPT41Nano = "gpt-4.1-nano"
 )
 
 // OpenAIModel implements the Model interface for OpenAI

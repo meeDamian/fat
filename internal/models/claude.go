@@ -13,10 +13,13 @@ import (
 const (
 	Claude = "claude"
 
-	Claude45Sonnet = "claude-sonnet-4-5-20250929"
-	Claude35Haiku  = "claude-3-5-haiku-20241022"
-	Claude35Sonnet = "claude-3-5-sonnet-20241022"
-	Claude3Opus    = "claude-3-opus-20240229"
+	Claude45Sonnet = "claude-sonnet-4-5"
+	Claude45Haiku  = "claude-haiku-4-5"
+	Claude41Opus   = "claude-opus-4-1"
+	Claude4Sonnet  = "claude-sonnet-4-0"
+	Claude37Sonnet = "claude-3-7-sonnet-latest"
+	Claude4Opus    = "claude-opus-4-0"
+	Claude35Haiku  = "claude-3-5-haiku-latest"
 )
 
 // ClaudeModel implements the Model interface for Anthropic Claude
