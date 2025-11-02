@@ -7,6 +7,11 @@ const toggleConfigLink = document.getElementById('toggleConfig');
 const modelConfig = document.getElementById('modelConfig');
 const controlPanel = document.querySelector('.control-panel');
 const hero = document.querySelector('.hero');
+const heroStage = document.getElementById('heroStage');
+const galleryStage = document.getElementById('galleryStage');
+const modelOrder = ['grok', 'gpt', 'claude', 'gemini'];
+let heroLayoutEnabled = false;
+let currentHeroId = null;
 
 const cardElements = {
     grok: document.getElementById('grok'),
@@ -88,7 +93,8 @@ function renderRoundDots(model) {
         const dot = document.createElement('span');
         dot.classList.add('round-dot');
         dot.dataset.round = i + 1;
-        dot.addEventListener('click', () => {
+        dot.addEventListener('click', (e) => {
+            e.stopPropagation();
             if (!dot.classList.contains('completed')) return;
             showRoundResponse(model, i + 1);
             setActiveDot(model, i + 1);
@@ -171,12 +177,13 @@ function initWebSocket() {
             Object.entries(outputs).forEach(([model, output]) => {
                 output.innerHTML = '<p class="placeholder">Responses will appear here once the collaboration begins.</p>';
                 output.className = 'model-output';
-                cardElements[model].classList.remove('winner', 'runner-up', 'loading', 'error');
+                cardElements[model].className = 'model-card';
             });
             conversationBoard.classList.remove('hidden');
             finalResult.classList.add('hidden');
             finalResult.textContent = '';
             submitBtn.textContent = 'Starting...';
+            resetHeroLayout();
         } else if (data.type === 'round_start') {
             submitBtn.textContent = `Round ${data.round}/${data.total}`;
             Object.values(cardElements).forEach(card => card.classList.add('loading'));
@@ -210,27 +217,31 @@ function initWebSocket() {
             submitBtn.textContent = 'Ranking...';
         } else if (data.type === 'winner') {
             Object.values(cardElements).forEach(card => card.classList.remove('loading'));
-            
-            // Handle winner
-            const winnerElement = data.model ? cardElements[data.model] : null;
-            if (winnerElement) {
-                winnerElement.classList.add('winner');
+
+            const winnerId = data.model;
+            const runnerUpId = data.runner_up;
+
+            if (winnerId && cardElements[winnerId]) {
+                cardElements[winnerId].classList.add('winner');
+                currentHeroId = winnerId;
             }
-            
-            // Handle runner-up
-            const runnerUpElement = data.runner_up ? cardElements[data.runner_up] : null;
-            if (runnerUpElement) {
-                runnerUpElement.classList.add('runner-up');
+
+            if (runnerUpId && cardElements[runnerUpId]) {
+                cardElements[runnerUpId].classList.add('runner-up');
             }
-            
+
+            buildHeroLayout(winnerId, runnerUpId);
+
             submitBtn.textContent = '✓ Complete';
             submitBtn.disabled = false;
             setSelectorsEnabled(true);
             finalResult.classList.remove('hidden');
-            
-            let resultHTML = `<strong>🏆 Winner:</strong> ${winnerElement ? winnerElement.querySelector('.model-name').textContent : data.model}`;
-            if (runnerUpElement) {
-                resultHTML += ` &nbsp;|&nbsp; <strong>🥈 Runner-up:</strong> ${runnerUpElement.querySelector('.model-name').textContent}`;
+
+            const winnerName = winnerId ? cardElements[winnerId].querySelector('.model-name').textContent : data.model;
+            let resultHTML = `<strong>🏆 Winner:</strong> ${winnerName}`;
+            if (runnerUpId && cardElements[runnerUpId]) {
+                const runnerName = cardElements[runnerUpId].querySelector('.model-name').textContent;
+                resultHTML += ` &nbsp;|&nbsp; <strong>🥈 Runner-up:</strong> ${runnerName}`;
             }
             finalResult.innerHTML = resultHTML;
         }
@@ -298,8 +309,11 @@ submitBtn.addEventListener('click', async function() {
 });
 
 questionInput.addEventListener('keydown', function(e) {
-    // Cmd/Ctrl + Enter to submit
-    if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+    if (e.key === 'Enter') {
+        if (e.shiftKey) {
+            // allow newline
+            return;
+        }
         e.preventDefault();
         submitBtn.click();
     }
@@ -356,6 +370,86 @@ function setSelectorsEnabled(enabled) {
     });
 }
 
+function resetHeroLayout() {
+    heroLayoutEnabled = false;
+    currentHeroId = null;
+    heroStage.classList.remove('active');
+    heroStage.innerHTML = '';
+    galleryStage.classList.remove('interactive', 'compact');
+    galleryStage.innerHTML = '';
+    // Re-append cards in original order
+    modelOrder.forEach(id => {
+        const card = cardElements[id];
+        if (card) {
+            card.className = 'model-card';
+            galleryStage.appendChild(card);
+        }
+    });
+}
+
+function buildHeroLayout(winnerId, runnerUpId) {
+    heroLayoutEnabled = true;
+    heroStage.innerHTML = '';
+    galleryStage.innerHTML = '';
+
+    heroStage.classList.add('active');
+    galleryStage.classList.add('interactive');
+
+    const orderedIds = [...modelOrder];
+    // Winner first
+    if (winnerId) {
+        moveCardToHero(winnerId, true);
+    }
+
+    // Populate gallery with remaining cards
+    orderedIds.filter(id => id !== winnerId).forEach(id => {
+        const card = cardElements[id];
+        if (!card) return;
+        card.classList.remove('active-card');
+        card.classList.add('compact');
+        card.removeEventListener('click', handleGalleryCardClick);
+        card.addEventListener('click', handleGalleryCardClick);
+        galleryStage.appendChild(card);
+    });
+
+    if (runnerUpId && cardElements[runnerUpId]) {
+        galleryStage.classList.add('compact');
+    }
+}
+
+function moveCardToHero(cardId, isInitial = false) {
+    const card = cardElements[cardId];
+    if (!card) return;
+
+    currentHeroId = cardId;
+    heroStage.innerHTML = '';
+    card.classList.remove('compact');
+    card.classList.add('hero-card', 'active-card');
+    heroStage.appendChild(card);
+
+    if (!isInitial) {
+        // Rebuild gallery with remaining cards
+        const remaining = modelOrder.filter(id => id !== cardId);
+        galleryStage.innerHTML = '';
+        remaining.forEach(id => {
+            const galleryCard = cardElements[id];
+            if (!galleryCard) return;
+            galleryCard.classList.remove('hero-card', 'active-card');
+            galleryCard.classList.add('compact');
+            galleryCard.removeEventListener('click', handleGalleryCardClick);
+            galleryCard.addEventListener('click', handleGalleryCardClick);
+            galleryStage.appendChild(galleryCard);
+        });
+    }
+}
+
+function handleGalleryCardClick(event) {
+    const card = event.currentTarget;
+    const id = card.dataset.model;
+    if (!id || id === currentHeroId) return;
+    moveCardToHero(id);
+}
+
 // Get selected models
 function getSelectedModels() {
     const selected = {};
@@ -383,9 +477,23 @@ controlPanel.classList.add('initial');
 const roundsSlider = document.getElementById('roundsSelect');
 const roundsValueDisplay = document.getElementById('roundsValue');
 
-roundsSlider.addEventListener('input', function() {
-    roundsValueDisplay.textContent = this.value;
-});
+function updateRoundsSliderUI(value) {
+    if (!roundsSlider) return;
+    const displayValue = Number.isFinite(value) ? value : parseInt(roundsSlider.value, 10) || 3;
+    if (roundsValueDisplay) {
+        roundsValueDisplay.textContent = displayValue;
+    }
+    const size = Math.min(18 + (displayValue - 3) * 2, 30);
+    roundsSlider.style.setProperty('--thumb-size', `${size}px`);
+}
+
+if (roundsSlider) {
+    roundsSlider.addEventListener('input', function() {
+        const value = parseInt(this.value, 10);
+        updateRoundsSliderUI(value);
+    });
+    updateRoundsSliderUI(parseInt(roundsSlider.value, 10));
+}
 
 // Initialize WebSocket connection
 prefillRandomQuestion(true);
