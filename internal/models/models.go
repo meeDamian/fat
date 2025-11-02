@@ -7,6 +7,17 @@ import (
 )
 
 // ModelFamilies defines all available model families with their variants
+//
+// PRICING NOTES:
+// - Rate.In = input cost per 1M tokens (e.g., 3.0 means $3.00 per 1M input tokens)
+// - Rate.Out = output cost per 1M tokens (e.g., 15.0 means $15.00 per 1M output tokens)
+// - Set to 0.0 if pricing is not available yet
+// - Update pricing from provider documentation:
+//   - Grok: https://docs.x.ai/docs/models
+//   - GPT: https://openai.com/api/pricing/
+//   - Claude: https://www.anthropic.com/pricing
+//   - Gemini: https://ai.google.dev/pricing
+//   - DeepSeek: https://platform.deepseek.com/api-docs/pricing/
 var ModelFamilies = map[string]types.ModelFamily{
 	// Models list: https://docs.x.ai/docs/models
 	Grok: {
@@ -14,12 +25,12 @@ var ModelFamilies = map[string]types.ModelFamily{
 		Provider: "xAI",
 		BaseURL:  "https://api.x.ai/v1/chat/completions",
 		Variants: map[string]types.ModelVariant{
-			Grok4Fast:             {Name: Grok4Fast, MaxTok: 2_000_000},
-			Grok4FastNonReasoning: {Name: Grok4FastNonReasoning, MaxTok: 2_000_000},
-			GrokCodeFast1:         {Name: GrokCodeFast1, MaxTok: 256_000},
-			Grok4:                 {Name: Grok4, MaxTok: 256_000},
-			Grok3Mini:             {Name: Grok3Mini, MaxTok: 131_072},
-			Grok3:                 {Name: Grok3, MaxTok: 131_072},
+			Grok4Fast:             {Name: Grok4Fast, MaxTok: 2_000_000, Rate: types.Rate{In: 0.2, Out: 0.5}},
+			Grok4FastNonReasoning: {Name: Grok4FastNonReasoning, MaxTok: 2_000_000, Rate: types.Rate{In: 0.2, Out: 0.5}},
+			GrokCodeFast1:         {Name: GrokCodeFast1, MaxTok: 256_000, Rate: types.Rate{In: 0.2, Out: 1.5}},
+			Grok4:                 {Name: Grok4, MaxTok: 256_000, Rate: types.Rate{In: 3.0, Out: 15.0}},
+			Grok3Mini:             {Name: Grok3Mini, MaxTok: 131_072, Rate: types.Rate{In: 0.3, Out: 0.5}},
+			Grok3:                 {Name: Grok3, MaxTok: 131_072, Rate: types.Rate{In: 3.0, Out: 15.0}},
 		},
 	},
 
@@ -29,14 +40,14 @@ var ModelFamilies = map[string]types.ModelFamily{
 		Provider: "OpenAI",
 		BaseURL:  "https://api.openai.com/v1/chat/completions",
 		Variants: map[string]types.ModelVariant{
-			GPT5Pro:   {Name: GPT5Pro, MaxTok: 400_000},
-			GPT5:      {Name: GPT5, MaxTok: 400_000},
-			GPT5Mini:  {Name: GPT5Mini, MaxTok: 400_000},
-			GPT5Nano:  {Name: GPT5Nano, MaxTok: 400_000},
-			GPT5Codex: {Name: GPT5Codex, MaxTok: 400_000},
-			GPT41:     {Name: GPT41, MaxTok: 1_047_576},
-			GPT41Mini: {Name: GPT41Mini, MaxTok: 1_047_576},
-			GPT41Nano: {Name: GPT41Nano, MaxTok: 1_047_576},
+			GPT5Pro:   {Name: GPT5Pro, MaxTok: 400_000, Rate: types.Rate{In: 15.0, Out: 120.0}},
+			GPT5:      {Name: GPT5, MaxTok: 400_000, Rate: types.Rate{In: 1.25, Out: 10.0}},
+			GPT5Mini:  {Name: GPT5Mini, MaxTok: 400_000, Rate: types.Rate{In: 0.25, Out: 2.0}},
+			GPT5Nano:  {Name: GPT5Nano, MaxTok: 400_000, Rate: types.Rate{In: 0.05, Out: 0.4}},
+			GPT5Codex: {Name: GPT5Codex, MaxTok: 400_000, Rate: types.Rate{In: 1.25, Out: 10.0}},
+			GPT41:     {Name: GPT41, MaxTok: 1_047_576, Rate: types.Rate{In: 2.0, Out: 8.0}},
+			GPT41Mini: {Name: GPT41Mini, MaxTok: 1_047_576, Rate: types.Rate{In: 0.4, Out: 1.6}},
+			GPT41Nano: {Name: GPT41Nano, MaxTok: 1_047_576, Rate: types.Rate{In: 0.1, Out: 0.4}},
 		},
 	},
 
@@ -48,13 +59,13 @@ var ModelFamilies = map[string]types.ModelFamily{
 		Variants: map[string]types.ModelVariant{
 			// NOTE: Claude Sonnet 4.5 supports a 1M token context window when using the context-1m-2025-08-07 beta header. Long context pricing applies to requests exceeding 200K tokens.
 			// NOTE: Claude Sonnet 4 supports a 1M token context window when using the context-1m-2025-08-07 beta header. Long context pricing applies to requests exceeding 200K tokens.
-			Claude45Sonnet: {Name: Claude45Sonnet, MaxTok: 200_000},
-			Claude45Haiku:  {Name: Claude45Haiku, MaxTok: 200_000},
-			Claude41Opus:   {Name: Claude41Opus, MaxTok: 200_000},
-			Claude4Sonnet:  {Name: Claude4Sonnet, MaxTok: 200_000},
-			Claude37Sonnet: {Name: Claude37Sonnet, MaxTok: 200_000},
-			Claude4Opus:    {Name: Claude4Opus, MaxTok: 200_000},
-			Claude35Haiku:  {Name: Claude35Haiku, MaxTok: 200_000},
+			Claude45Sonnet: {Name: Claude45Sonnet, MaxTok: 200_000, Rate: types.Rate{In: 3.0, Out: 15.0}},
+			Claude45Haiku:  {Name: Claude45Haiku, MaxTok: 200_000, Rate: types.Rate{In: 1.0, Out: 5.0}},
+			Claude41Opus:   {Name: Claude41Opus, MaxTok: 200_000, Rate: types.Rate{In: 15.0, Out: 75.0}},
+			Claude4Sonnet:  {Name: Claude4Sonnet, MaxTok: 200_000, Rate: types.Rate{In: 3.0, Out: 15.0}},
+			Claude37Sonnet: {Name: Claude37Sonnet, MaxTok: 200_000, Rate: types.Rate{In: 3.0, Out: 15.0}},
+			Claude4Opus:    {Name: Claude4Opus, MaxTok: 200_000, Rate: types.Rate{In: 15.0, Out: 75.0}},
+			Claude35Haiku:  {Name: Claude35Haiku, MaxTok: 200_000, Rate: types.Rate{In: 0.8, Out: 4.0}},
 		},
 	},
 
@@ -64,11 +75,11 @@ var ModelFamilies = map[string]types.ModelFamily{
 		Provider: "Google",
 		BaseURL:  "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent", // Updated to placeholder for flexibility.
 		Variants: map[string]types.ModelVariant{
-			Gemini25Pro:       {Name: Gemini25Pro, MaxTok: 1_048_576},
-			Gemini25Flash:     {Name: Gemini25Flash, MaxTok: 1_048_576},
-			Gemini25FlashLite: {Name: Gemini25FlashLite, MaxTok: 1_048_576},
-			Gemini20Flash:     {Name: Gemini20Flash, MaxTok: 1_048_576},
-			Gemini20FlashLite: {Name: Gemini20FlashLite, MaxTok: 1_048_576},
+			Gemini25Pro:       {Name: Gemini25Pro, MaxTok: 1_048_576, Rate: types.Rate{In: 1.25, Out: 10.0}},
+			Gemini25Flash:     {Name: Gemini25Flash, MaxTok: 1_048_576, Rate: types.Rate{In: 0.30, Out: 2.5}},
+			Gemini25FlashLite: {Name: Gemini25FlashLite, MaxTok: 1_048_576, Rate: types.Rate{In: 0.1, Out: 0.4}},
+			Gemini20Flash:     {Name: Gemini20Flash, MaxTok: 1_048_576, Rate: types.Rate{In: 0.1, Out: 0.4}},
+			Gemini20FlashLite: {Name: Gemini20FlashLite, MaxTok: 1_048_576, Rate: types.Rate{In: 0.075, Out: 0.3}},
 		},
 	},
 
@@ -78,8 +89,8 @@ var ModelFamilies = map[string]types.ModelFamily{
 		Provider: "DeepSeek",
 		BaseURL:  "https://api.deepseek.com/v1",
 		Variants: map[string]types.ModelVariant{
-			DeepSeekChat:  {Name: DeepSeekChat, MaxTok: 128_000},
-			DeepSeekCoder: {Name: DeepSeekCoder, MaxTok: 128_000},
+			DeepSeekChat:  {Name: DeepSeekChat, MaxTok: 128_000, Rate: types.Rate{In: 0.28, Out: 0.42}},
+			DeepSeekCoder: {Name: DeepSeekCoder, MaxTok: 128_000, Rate: types.Rate{In: 0.28, Out: 0.42}},
 		},
 	},
 }
