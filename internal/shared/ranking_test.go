@@ -72,12 +72,17 @@ func TestFormatRankingPrompt(t *testing.T) {
 		"GPT":    {Answer: "Answer from GPT"},
 		"Claude": {Answer: "Answer from Claude"},
 	}
-
-	// Create anonymization map
+	
+	costs := map[string]float64{
+		"Grok":   0.001,
+		"GPT":    0.002,
+		"Claude": 0.0015,
+	}
+	
 	allAgents := []string{"Grok", "GPT", "Claude"}
 	anonMap := CreateAnonymizationMap(allAgents)
 
-	prompt := FormatRankingPrompt("Grok", "What is AI?", []string{"GPT", "Claude"}, finalAnswers, anonMap)
+	prompt := FormatRankingPrompt("Grok", "What is AI?", []string{"GPT", "Claude"}, finalAnswers, anonMap, costs)
 
 	if prompt == "" {
 		t.Error("Ranking prompt should not be empty")

@@ -30,7 +30,7 @@ func CreateAnonymizationMap(allAgents []string) map[string]string {
 }
 
 // FormatRankingPrompt creates a standardized ranking prompt with anonymized agents
-func FormatRankingPrompt(agentName, question string, otherAgents []string, finalAnswers map[string]types.Reply, anonMap map[string]string) string {
+func FormatRankingPrompt(agentName, question string, otherAgents []string, finalAnswers map[string]types.Reply, anonMap map[string]string, costs map[string]float64) string {
 	var b strings.Builder
 
 	// Build list of all agents
@@ -57,11 +57,20 @@ func FormatRankingPrompt(agentName, question string, otherAgents []string, final
 	
 	b.WriteString("# ANSWERS TO RANK\n\n")
 
-	// Show answers with anonymous letters
+	// Show answers with anonymous letters and costs
 	for _, agent := range allAgents {
 		if reply, ok := finalAnswers[agent]; ok {
 			letter := anonMap[agent]
-			b.WriteString(fmt.Sprintf("## Agent %s\n\n%s\n\n", letter, reply.Answer))
+			cost := costs[agent]
+			// Always show cost in cents with necessary precision
+			cents := cost * 100
+			costStr := fmt.Sprintf("%.4f¢", cents)
+			// Remove trailing zeros
+			costStr = strings.TrimRight(strings.TrimRight(costStr, "0"), ".")
+			if !strings.Contains(costStr, ".") {
+				costStr = strings.TrimSuffix(costStr, "¢") + "¢"
+			}
+			b.WriteString(fmt.Sprintf("## Agent %s (Cost: %s)\n\n%s\n\n", letter, costStr, reply.Answer))
 		}
 	}
 
@@ -81,10 +90,12 @@ func FormatRankingPrompt(agentName, question string, otherAgents []string, final
 	b.WriteString("Prompt adherence violations should result in severe ranking penalties.\n\n")
 	b.WriteString("═══════════════════════════════════════════════════════════════\n\n")
 	b.WriteString("Ranking criteria (for answers that follow the prompt):\n")
-	b.WriteString("- **Accuracy** (40%): Correctness and precision\n")
-	b.WriteString("- **Completeness** (30%): Addresses all aspects of the question\n")
+	b.WriteString("- **Accuracy** (35%): Correctness and precision\n")
+	b.WriteString("- **Completeness** (25%): Addresses all aspects of the question\n")
 	b.WriteString("- **Clarity** (20%): Well-structured and understandable\n")
+	b.WriteString("- **Cost-Efficiency** (10%): Quality relative to cost\n")
 	b.WriteString("- **Insight** (10%): Depth and originality\n\n")
+	b.WriteString("Note: Lower cost is better when quality is similar. Consider value for money.\n\n")
 	b.WriteString("Be objective. Judge on merit, not identity.\n\n")
 	
 	b.WriteString("═══════════════════════════════════════════════════════════════\n")

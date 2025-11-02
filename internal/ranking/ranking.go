@@ -39,6 +39,17 @@ func RankModels(
 		}
 	}
 
+	// Calculate costs for each model
+	costsByName := make(map[string]float64)
+	for _, mi := range activeModels {
+		mm := reqMetrics.ModelMetrics[mi.ID]
+		if mm != nil {
+			rate := getRateForModel(mi)
+			cost := (float64(mm.TotalTokens.Input)*rate.In + float64(mm.TotalTokens.Output)*rate.Out) / 1_000_000
+			costsByName[mi.Name] = cost
+		}
+	}
+
 	// Create shared anonymization map for all models
 	allAgentNames := make([]string, 0, len(activeModels))
 	for _, mi := range activeModels {
@@ -66,8 +77,8 @@ func RankModels(
 				}
 			}
 
-			// Create ranking prompt with shared anonymization map
-			prompt := shared.FormatRankingPrompt(mi.Name, question, otherAgents, repliesByName, anonMap)
+			// Create ranking prompt with shared anonymization map and costs
+			prompt := shared.FormatRankingPrompt(mi.Name, question, otherAgents, repliesByName, anonMap, costsByName)
 
 			// Create timeout context
 			timeout := mi.RequestTimeout
