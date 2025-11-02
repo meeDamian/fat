@@ -357,6 +357,15 @@ Test.`,
 			if reply.Answer != tt.expected {
 				t.Errorf("Expected answer %q, got %q", tt.expected, reply.Answer)
 			}
+			// For the refusal case, verify it goes into rationale
+			if tt.name == "refusal to answer" {
+				if reply.Rationale == "" {
+					t.Error("Unformatted refusal should be captured in rationale")
+				}
+				if reply.Rationale != tt.content {
+					t.Errorf("Expected rationale to be %q, got %q", tt.content, reply.Rationale)
+				}
+			}
 		})
 	}
 }

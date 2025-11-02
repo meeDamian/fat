@@ -229,6 +229,7 @@ func ParseResponse(content string) types.Reply {
 	var currentSection string
 	var currentAgent string
 	var sectionLines []string
+	foundAnySection := false
 
 	for i := 0; i < len(lines); i++ {
 		line := lines[i]
@@ -248,10 +249,13 @@ func ParseResponse(content string) types.Reply {
 			switch heading {
 			case "ANSWER":
 				currentSection = "answer"
+				foundAnySection = true
 			case "RATIONALE":
 				currentSection = "rationale"
+				foundAnySection = true
 			case "DISCUSSION":
 				currentSection = "discussion"
+				foundAnySection = true
 			default:
 				currentSection = ""
 			}
@@ -269,6 +273,7 @@ func ParseResponse(content string) types.Reply {
 					currentAgent = ""
 				}
 
+				foundAnySection = true
 				switch heading {
 				case "ANSWER":
 					currentSection = "answer"
@@ -305,6 +310,15 @@ func ParseResponse(content string) types.Reply {
 	// Save final section
 	if currentSection != "" {
 		saveSection(&reply, currentSection, strings.Join(sectionLines, "\n"), currentAgent)
+	}
+
+	// If no section headers were found at all, treat entire response as rationale
+	// This handles cases where models refuse to follow format
+	if !foundAnySection {
+		trimmedContent := strings.TrimSpace(content)
+		if trimmedContent != "" {
+			reply.Rationale = trimmedContent
+		}
 	}
 
 	return reply

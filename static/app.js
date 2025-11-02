@@ -223,6 +223,7 @@ function initWebSocket() {
             });
             conversationBoard.classList.remove('hidden');
             document.getElementById('discussionsSection')?.classList.add('hidden');
+            activeDiscussionFilter = null;
             submitBtn.textContent = 'Starting...';
             resetHeroLayout();
         } else if (data.type === 'round_start') {
@@ -540,12 +541,31 @@ if (roundsSlider) {
     updateRoundsSliderUI(parseInt(roundsSlider.value, 10));
 }
 
+// Track active discussion filter
+let activeDiscussionFilter = null;
+
 // Build discussions section from collected discussion data
 function buildDiscussionsSection() {
     const discussionsSection = document.getElementById('discussionsSection');
     const discussionsContainer = document.getElementById('discussionsContainer');
+    const filtersContainer = document.getElementById('discussionFilters');
     
-    if (!discussionsSection || !discussionsContainer) return;
+    if (!discussionsSection || !discussionsContainer || !filtersContainer) return;
+    
+    // Helper to normalize agent name to model ID
+    const normalizeToModelId = (agentName) => {
+        // If it's already a model ID, return it
+        if (modelState[agentName]) return agentName;
+        
+        // Try to extract model ID from full name or partial match
+        const lowerName = agentName.toLowerCase();
+        for (const modelId of Object.keys(modelState)) {
+            if (lowerName.includes(modelId)) return modelId;
+        }
+        
+        // Fallback: return as-is
+        return agentName;
+    };
     
     // Collect all discussions grouped by agent pairs
     const pairConversations = {};
@@ -556,8 +576,15 @@ function buildDiscussionsSection() {
             if (!discussionData || Object.keys(discussionData).length === 0) return;
             
             Object.entries(discussionData).forEach(([toAgent, message]) => {
+                // Normalize both agents to model IDs
+                const fromId = normalizeToModelId(fromModel);
+                const toId = normalizeToModelId(toAgent);
+                
+                // Skip if we couldn't normalize
+                if (!modelState[fromId] || !modelState[toId]) return;
+                
                 // Create a normalized pair key (alphabetically sorted)
-                const pair = [fromModel, toAgent].sort().join('-');
+                const pair = [fromId, toId].sort().join('-');
                 
                 if (!pairConversations[pair]) {
                     pairConversations[pair] = [];
@@ -566,8 +593,8 @@ function buildDiscussionsSection() {
                 // Add message to the conversation
                 pairConversations[pair].push({
                     round: roundIndex + 1,
-                    from: fromModel,
-                    to: toAgent,
+                    from: fromId,
+                    to: toId,
                     message: message
                 });
             });
@@ -586,10 +613,42 @@ function buildDiscussionsSection() {
     // Show section and build UI
     discussionsSection.classList.remove('hidden');
     
+    // Build filter chips
+    filtersContainer.innerHTML = '';
+    const allModels = Object.keys(modelState);
+    
+    // Add "All" chip
+    const allChip = document.createElement('button');
+    allChip.className = 'discussion-filter-chip' + (activeDiscussionFilter === null ? ' active' : '');
+    allChip.textContent = 'All';
+    allChip.addEventListener('click', () => {
+        activeDiscussionFilter = null;
+        buildDiscussionsSection();
+    });
+    filtersContainer.appendChild(allChip);
+    
+    // Add chip for each model
+    allModels.forEach(modelId => {
+        const chip = document.createElement('button');
+        chip.className = 'discussion-filter-chip' + (activeDiscussionFilter === modelId ? ' active' : '');
+        const modelName = cardElements[modelId]?.querySelector('.model-name')?.textContent || modelId;
+        chip.textContent = modelName;
+        chip.addEventListener('click', () => {
+            activeDiscussionFilter = modelId;
+            buildDiscussionsSection();
+        });
+        filtersContainer.appendChild(chip);
+    });
+    
     // Sort pairs alphabetically
     const sortedPairs = Object.keys(pairConversations).sort();
     
-    sortedPairs.forEach(pair => {
+    // Filter pairs based on active filter
+    const filteredPairs = activeDiscussionFilter 
+        ? sortedPairs.filter(pair => pair.includes(activeDiscussionFilter))
+        : sortedPairs;
+    
+    filteredPairs.forEach(pair => {
         const messages = pairConversations[pair];
         const [model1, model2] = pair.split('-');
         
@@ -617,10 +676,11 @@ function buildDiscussionsSection() {
             msgDiv.className = 'discussion-message';
             
             const fromName = cardElements[msg.from]?.querySelector('.model-name')?.textContent || msg.from;
+            const toName = cardElements[msg.to]?.querySelector('.model-name')?.textContent || msg.to;
             
             const metaSpan = document.createElement('span');
             metaSpan.className = 'discussion-meta';
-            metaSpan.textContent = `Round ${msg.round} • ${fromName}`;
+            metaSpan.textContent = `Round ${msg.round} • ${fromName} to ${toName}`;
             
             const textDiv = document.createElement('div');
             textDiv.className = 'discussion-text';
