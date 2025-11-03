@@ -8,7 +8,7 @@ const controlPanel = document.querySelector('.control-panel');
 const hero = document.querySelector('.hero');
 const heroStage = document.getElementById('heroStage');
 const galleryStage = document.getElementById('galleryStage');
-const modelOrder = ['grok', 'gpt', 'claude', 'gemini', 'deepseek'];
+const modelOrder = ['grok', 'gpt', 'claude', 'gemini', 'deepseek', 'mistral'];
 let heroLayoutEnabled = false;
 let currentHeroId = null;
 
@@ -17,7 +17,8 @@ const cardElements = {
     gpt: document.getElementById('gpt'),
     claude: document.getElementById('claude'),
     gemini: document.getElementById('gemini'),
-    deepseek: document.getElementById('deepseek')
+    deepseek: document.getElementById('deepseek'),
+    mistral: document.getElementById('mistral')
 };
 
 const statusIndicators = {
@@ -25,7 +26,8 @@ const statusIndicators = {
     gpt: cardElements.gpt?.querySelector('.model-status') || null,
     claude: cardElements.claude?.querySelector('.model-status') || null,
     gemini: cardElements.gemini?.querySelector('.model-status') || null,
-    deepseek: cardElements.deepseek?.querySelector('.model-status') || null
+    deepseek: cardElements.deepseek?.querySelector('.model-status') || null,
+    mistral: cardElements.mistral?.querySelector('.model-status') || null
 };
 
 const costIndicators = {
@@ -33,7 +35,8 @@ const costIndicators = {
     gpt: document.querySelector('.model-cost[data-model="gpt"]'),
     claude: document.querySelector('.model-cost[data-model="claude"]'),
     gemini: document.querySelector('.model-cost[data-model="gemini"]'),
-    deepseek: document.querySelector('.model-cost[data-model="deepseek"]')
+    deepseek: document.querySelector('.model-cost[data-model="deepseek"]'),
+    mistral: document.querySelector('.model-cost[data-model="mistral"]')
 };
 
 // Track cumulative costs per model for current request
@@ -42,7 +45,8 @@ const modelCosts = {
     gpt: 0,
     claude: 0,
     gemini: 0,
-    deepseek: 0
+    deepseek: 0,
+    mistral: 0
 };
 
 function setCardStatus(model, icon = '') {
@@ -129,7 +133,8 @@ const outputs = {
     gpt: document.getElementById('gpt-output'),
     claude: document.getElementById('claude-output'),
     gemini: document.getElementById('gemini-output'),
-    deepseek: document.getElementById('deepseek-output')
+    deepseek: document.getElementById('deepseek-output'),
+    mistral: document.getElementById('mistral-output')
 };
 
 const selectors = {
@@ -137,7 +142,8 @@ const selectors = {
     gpt: document.getElementById('gpt-selector'),
     claude: document.getElementById('claude-selector'),
     gemini: document.getElementById('gemini-selector'),
-    deepseek: document.getElementById('deepseek-selector')
+    deepseek: document.getElementById('deepseek-selector'),
+    mistral: document.getElementById('mistral-selector')
 };
 
 // Fetch random question from backend
@@ -159,7 +165,8 @@ const modelState = {
     gpt: createEmptyModelState(),
     claude: createEmptyModelState(),
     gemini: createEmptyModelState(),
-    deepseek: createEmptyModelState()
+    deepseek: createEmptyModelState(),
+    mistral: createEmptyModelState()
 };
 
 function createEmptyModelState() {

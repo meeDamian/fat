@@ -65,6 +65,12 @@
                                 <option value="">Loading...</option>
                             </select>
                         </div>
+                        <div class="model-config-item">
+                            <label><strong>Mistral</strong> <span class="provider-tag">Mistral AI</span></label>
+                            <select class="model-selector" id="mistral-selector" data-family="mistral">
+                                <option value="">Loading...</option>
+                            </select>
+                        </div>
                     </div>
                 </div>
                 <div class="config-section">
@@ -137,6 +143,18 @@
                             </header>
                             <div class="round-progress" data-model="deepseek"></div>
                             <div class="model-output" id="deepseek-output">
+                                <p class="placeholder">Responses will appear here once the collaboration begins.</p>
+                            </div>
+                        </article>
+                        <article class="model-card" id="mistral" data-model="mistral">
+                            <header>
+                                <span class="model-name">Mistral</span>
+                                <span class="model-status" aria-hidden="true"></span>
+                                <span class="model-cost" data-model="mistral"></span>
+                                <span class="model-provider">Mistral AI</span>
+                            </header>
+                            <div class="round-progress" data-model="mistral"></div>
+                            <div class="model-output" id="mistral-output">
                                 <p class="placeholder">Responses will appear here once the collaboration begins.</p>
                             </div>
                         </article>

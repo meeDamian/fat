@@ -93,6 +93,22 @@ var ModelFamilies = map[string]types.ModelFamily{
 			DeepSeekCoder: {Name: DeepSeekCoder, MaxTok: 128_000, Rate: types.Rate{In: 0.28, Out: 0.42}},
 		},
 	},
+
+	// Models list: https://docs.mistral.ai/getting-started/models/
+	// Pricing: https://mistral.ai/technology/#pricing
+	Mistral: {
+		ID:       Mistral,
+		Provider: "Mistral AI",
+		BaseURL:  "https://api.mistral.ai/v1",
+		Variants: map[string]types.ModelVariant{
+			MagistralMedium: {Name: MagistralMedium, MaxTok: 128_000, Rate: types.Rate{In: 2.0, Out: 5.0}},
+			MistralMedium:   {Name: MistralMedium, MaxTok: 128_000, Rate: types.Rate{In: 0.4, Out: 2.0}},
+			Codestral:       {Name: Codestral, MaxTok: 256_000, Rate: types.Rate{In: 0.3, Out: 0.9}},
+			Ministral3B:     {Name: Ministral3B, MaxTok: 128_000, Rate: types.Rate{In: 0.04, Out: 0.04}},
+			Ministral8B:     {Name: Ministral8B, MaxTok: 128_000, Rate: types.Rate{In: 0.1, Out: 0.1}},
+			MistralSmall:    {Name: MistralSmall, MaxTok: 32_000, Rate: types.Rate{In: 0.1, Out: 0.3}},
+		},
+	},
 }
 
 // ActiveModels defines which model variant to use for each family
@@ -103,6 +119,7 @@ var ActiveModels = map[string]string{
 	Claude:   Claude45Haiku,
 	Gemini:   Gemini25Flash,
 	DeepSeek: DeepSeekChat,
+	Mistral:  MistralSmall,
 }
 
 // AllModels builds runtime ModelInfo instances from families and active models
@@ -147,6 +164,8 @@ func NewModel(info *types.ModelInfo) types.Model {
 		return NewGeminiModel(info)
 	case DeepSeek:
 		return NewDeepSeekModel(info)
+	case Mistral:
+		return NewMistralModel(info)
 	default:
 		return nil
 	}
