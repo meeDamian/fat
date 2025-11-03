@@ -101,7 +101,7 @@ var ActiveModels = map[string]string{
 	Grok:     Grok4Fast,
 	GPT:      GPT5Mini,
 	Claude:   Claude45Haiku,
-	Gemini:   Gemini25Pro,
+	Gemini:   Gemini25Flash,
 	DeepSeek: DeepSeekChat,
 }
 

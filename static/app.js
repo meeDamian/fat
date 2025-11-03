@@ -53,15 +53,10 @@ function setCardStatus(model, icon = '') {
 }
 
 function formatCost(cost) {
-    if (cost < 0.01) {
-        // Less than $0.01 - show in cents with ¢ symbol
-        const cents = cost * 100;
-        // Remove trailing zeros after decimal point
-        return `${cents.toFixed(4).replace(/\.?0+$/, '')}¢`;
-    } else {
-        // $0.01 or more - show in dollars
-        return `$${cost.toFixed(2)}`;
-    }
+    // Always show cost in cents with ¢ symbol
+    const cents = cost * 100;
+    // Remove trailing zeros after decimal point
+    return `${cents.toFixed(4).replace(/\.?0+$/, '')}¢`;
 }
 
 function updateCostIndicator(model, additionalCost) {
