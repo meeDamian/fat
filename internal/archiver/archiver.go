@@ -127,9 +127,14 @@ func processDirectory(dirPath string, ageThreshold time.Time, logger *slog.Logge
 
 // moveToArchive moves a folder to answers/archive/YYYY-MM/
 func moveToArchive(srcPath, name string, modTime time.Time, logger *slog.Logger) error {
+	return moveToArchiveWithBase(srcPath, name, modTime, archiveDir, logger)
+}
+
+// moveToArchiveWithBase is the testable version that accepts a base directory
+func moveToArchiveWithBase(srcPath, name string, modTime time.Time, baseArchiveDir string, logger *slog.Logger) error {
 	// Create YYYY-MM directory
 	yearMonth := modTime.Format("2006-01")
-	archiveMonthDir := filepath.Join(archiveDir, yearMonth)
+	archiveMonthDir := filepath.Join(baseArchiveDir, yearMonth)
 	if err := os.MkdirAll(archiveMonthDir, 0755); err != nil {
 		return fmt.Errorf("failed to create archive month dir: %w", err)
 	}
@@ -159,7 +164,12 @@ func moveToArchive(srcPath, name string, modTime time.Time, logger *slog.Logger)
 
 // moveToRecent moves a folder to answers/recent/
 func moveToRecent(srcPath, name string, logger *slog.Logger) error {
-	destPath := filepath.Join(recentDir, name)
+	return moveToRecentWithBase(srcPath, name, recentDir, logger)
+}
+
+// moveToRecentWithBase is the testable version that accepts a base directory
+func moveToRecentWithBase(srcPath, name string, baseRecentDir string, logger *slog.Logger) error {
+	destPath := filepath.Join(baseRecentDir, name)
 
 	// Check if destination already exists
 	if _, err := os.Stat(destPath); err == nil {
