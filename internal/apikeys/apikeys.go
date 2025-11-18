@@ -16,6 +16,7 @@ var familyEnvVars = map[string]string{
 	models.Claude:   "CLAUDE_KEY",
 	models.Gemini:   "GEMINI_KEY",
 	models.DeepSeek: "DEEPSEEK_KEY",
+	models.Mistral:  "MISTRAL_KEY",
 }
 
 // Load loads API keys from environment variables, .env file, and keys.json

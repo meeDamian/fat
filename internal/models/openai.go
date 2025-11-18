@@ -13,6 +13,7 @@ import (
 const (
 	GPT = "gpt"
 
+	GPT51     = "gpt-5.1"
 	GPT5Pro   = "gpt-5-pro"
 	GPT5      = "gpt-5"
 	GPT5Mini  = "gpt-5-mini"

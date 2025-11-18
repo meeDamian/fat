@@ -40,6 +40,7 @@ var ModelFamilies = map[string]types.ModelFamily{
 		Provider: "OpenAI",
 		BaseURL:  "https://api.openai.com/v1/chat/completions",
 		Variants: map[string]types.ModelVariant{
+			GPT51:     {Name: GPT51, MaxTok: 400_000, Rate: types.Rate{In: 1.25, Out: 10.0}},
 			GPT5Pro:   {Name: GPT5Pro, MaxTok: 400_000, Rate: types.Rate{In: 15.0, Out: 120.0}},
 			GPT5:      {Name: GPT5, MaxTok: 400_000, Rate: types.Rate{In: 1.25, Out: 10.0}},
 			GPT5Mini:  {Name: GPT5Mini, MaxTok: 400_000, Rate: types.Rate{In: 0.25, Out: 2.0}},
@@ -119,7 +120,7 @@ var ActiveModels = map[string]string{
 	Claude:   Claude45Haiku,
 	Gemini:   Gemini25Flash,
 	DeepSeek: DeepSeekChat,
-	Mistral:  MistralSmall,
+	Mistral:  MistralMedium,
 }
 
 // AllModels builds runtime ModelInfo instances from families and active models

@@ -1,6 +1,7 @@
 package shared
 
 import (
+	"encoding/json"
 	"fmt"
 	"sort"
 	"strings"
@@ -56,7 +57,7 @@ func FormatPrompt(modelID, modelName, question string, meta types.Meta, replies 
 				}
 			}
 			sort.Strings(agentIDs)
-			
+
 			// Map short IDs to display names
 			idToDisplayName := map[string]string{
 				"grok":   "Grok",
@@ -64,7 +65,7 @@ func FormatPrompt(modelID, modelName, question string, meta types.Meta, replies 
 				"claude": "Claude",
 				"gemini": "Gemini",
 			}
-			
+
 			// Build a map of agentID -> full model name from OtherAgents
 			agentIDToFullName := make(map[string]string)
 			for _, fullName := range meta.OtherAgents {
@@ -80,26 +81,26 @@ func FormatPrompt(modelID, modelName, question string, meta types.Meta, replies 
 					agentIDToFullName["gemini"] = fullName
 				}
 			}
-			
+
 			for _, agentID := range agentIDs {
 				reply := replies[agentID]
 				answer := strings.TrimSpace(reply.Answer)
 				if answer == "" {
 					answer = "(No answer provided)"
 				}
-				
+
 				// Get display name for this agent
 				displayName := idToDisplayName[agentID]
 				if displayName == "" {
 					displayName = agentID
 				}
-				
+
 				// Get full model name
 				fullModelName := agentIDToFullName[agentID]
 				if fullModelName == "" {
 					fullModelName = agentID
 				}
-				
+
 				b.WriteString(fmt.Sprintf("## %s (%s)\n\n%s\n\n", displayName, fullModelName, answer))
 
 				// Include rationale if provided
@@ -140,11 +141,34 @@ func FormatPrompt(modelID, modelName, question string, meta types.Meta, replies 
 
 					b.WriteString(fmt.Sprintf("## With %s\n\n", agent))
 
-					// Show conversation thread in chronological order
-					for _, msg := range messages {
-						trimmed := strings.TrimSpace(msg.Message)
+					// Find the latest message from each party
+					var lastFromMe, lastToMe *types.DiscussionMessage
+					for i := len(messages) - 1; i >= 0; i-- {
+						msg := &messages[i]
+						if msg.From == modelID && lastFromMe == nil {
+							lastFromMe = msg
+						} else if msg.From == agent && lastToMe == nil {
+							lastToMe = msg
+						}
+						// Stop once we have both (or confirmed we don't have one)
+						if lastFromMe != nil && lastToMe != nil {
+							break
+						}
+					}
+
+					// Show context: my last message to them (if any)
+					if lastFromMe != nil {
+						trimmed := strings.TrimSpace(lastFromMe.Message)
 						if trimmed != "" {
-							b.WriteString(fmt.Sprintf("%s: %s\n\n", msg.From, trimmed))
+							b.WriteString(fmt.Sprintf("%s: %s\n\n", lastFromMe.From, trimmed))
+						}
+					}
+
+					// Show the latest message from them to me
+					if lastToMe != nil {
+						trimmed := strings.TrimSpace(lastToMe.Message)
+						if trimmed != "" {
+							b.WriteString(fmt.Sprintf("%s: %s\n\n", lastToMe.From, trimmed))
 						}
 					}
 				}
@@ -217,6 +241,55 @@ func FormatPrompt(modelID, modelName, question string, meta types.Meta, replies 
 	return b.String()
 }
 
+// extractContentFromJSON attempts to extract text content from JSON responses
+// Some reasoning models (like Mistral's magistral) return JSON with thinking/content fields
+func extractContentFromJSON(content string) string {
+	trimmed := strings.TrimSpace(content)
+
+	// Check if content looks like JSON (starts with [ or {)
+	if !strings.HasPrefix(trimmed, "[") && !strings.HasPrefix(trimmed, "{") {
+		return content
+	}
+
+	// Try to parse as JSON array
+	var jsonArray []map[string]any
+	if err := json.Unmarshal([]byte(trimmed), &jsonArray); err == nil {
+		// Extract content from JSON array
+		var extracted strings.Builder
+		for _, item := range jsonArray {
+			// Look for "content" or "text" fields
+			if contentVal, ok := item["content"].(string); ok && contentVal != "" {
+				extracted.WriteString(contentVal)
+				extracted.WriteString("\n")
+			} else if textVal, ok := item["text"].(string); ok && textVal != "" {
+				extracted.WriteString(textVal)
+				extracted.WriteString("\n")
+			}
+		}
+		if extracted.Len() > 0 {
+			return strings.TrimSpace(extracted.String())
+		}
+	}
+
+	// Try to parse as JSON object
+	var jsonObj map[string]any
+	if err := json.Unmarshal([]byte(trimmed), &jsonObj); err == nil {
+		// Look for common content fields
+		if contentVal, ok := jsonObj["content"].(string); ok && contentVal != "" {
+			return contentVal
+		}
+		if textVal, ok := jsonObj["text"].(string); ok && textVal != "" {
+			return textVal
+		}
+		if answerVal, ok := jsonObj["answer"].(string); ok && answerVal != "" {
+			return answerVal
+		}
+	}
+
+	// If JSON parsing failed or no content found, return original
+	return content
+}
+
 // ParseResponse parses markdown response into Reply struct
 // Preserves original formatting including list markers, indentation, and blank lines
 func ParseResponse(content string) types.Reply {
@@ -224,6 +297,9 @@ func ParseResponse(content string) types.Reply {
 		Discussion: make(map[string]string),
 		RawContent: content,
 	}
+
+	// Handle JSON responses from thinking/reasoning models
+	content = extractContentFromJSON(content)
 
 	lines := strings.Split(content, "\n")
 	var currentSection string
