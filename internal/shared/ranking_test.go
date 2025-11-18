@@ -2,7 +2,7 @@ package shared
 
 import (
 	"testing"
-	
+
 	"github.com/meedamian/fat/internal/types"
 )
 
@@ -29,7 +29,7 @@ D
 			t.Errorf("Position %d: expected %s, got %s", i, agent, ranking[i])
 		}
 	}
-	
+
 	// Test backwards compatibility with full names
 	contentFullNames := `# RANKING
 
@@ -53,16 +53,68 @@ func TestAggregateRankings(t *testing.T) {
 
 	allAgents := []string{"Grok", "GPT", "Claude"}
 
-	winner, runnerUp := AggregateRankings(rankings, allAgents)
+	gold, silver, bronze := AggregateRankings(rankings, allAgents)
 
 	// Grok should win: 3+2+3=8 points
 	// GPT: 2+3+1=6 points
 	// Claude: 1+1+2=4 points
-	if winner != "Grok" {
-		t.Errorf("Expected Grok to win, got %s", winner)
+	if len(gold) != 1 || gold[0] != "Grok" {
+		t.Errorf("Expected Grok to win gold, got %v", gold)
 	}
-	if runnerUp != "GPT" {
-		t.Errorf("Expected GPT as runner-up, got %s", runnerUp)
+	if len(silver) != 1 || silver[0] != "GPT" {
+		t.Errorf("Expected GPT as silver, got %v", silver)
+	}
+	if len(bronze) != 1 || bronze[0] != "Claude" {
+		t.Errorf("Expected Claude as bronze, got %v", bronze)
+	}
+}
+
+func TestAggregateRankingsWithTies(t *testing.T) {
+	// Test case where two models tie for gold
+	rankings := map[string][]string{
+		"grok":   {"Grok", "GPT", "Claude", "Gemini"},
+		"gpt":    {"GPT", "Grok", "Claude", "Gemini"},
+		"claude": {"Grok", "GPT", "Gemini", "Claude"},
+		"gemini": {"GPT", "Grok", "Claude", "Gemini"},
+	}
+
+	allAgents := []string{"Grok", "GPT", "Claude", "Gemini"}
+
+	gold, silver, bronze := AggregateRankings(rankings, allAgents)
+
+	// Grok: 4+3+4+3=14 points
+	// GPT: 3+4+3+4=14 points (tied for gold!)
+	// Claude: 2+2+1+2=7 points
+	// Gemini: 1+1+2+1=5 points
+
+	// Both Grok and GPT should have gold
+	if len(gold) != 2 {
+		t.Errorf("Expected 2 gold winners (tie), got %d: %v", len(gold), gold)
+	}
+
+	// Check both are in gold (order may vary)
+	hasGrok := false
+	hasGPT := false
+	for _, winner := range gold {
+		if winner == "Grok" {
+			hasGrok = true
+		}
+		if winner == "GPT" {
+			hasGPT = true
+		}
+	}
+	if !hasGrok || !hasGPT {
+		t.Errorf("Expected both Grok and GPT in gold, got %v", gold)
+	}
+
+	// Claude should have silver (next highest score)
+	if len(silver) != 1 || silver[0] != "Claude" {
+		t.Errorf("Expected Claude as silver, got %v", silver)
+	}
+
+	// Gemini should have bronze
+	if len(bronze) != 1 || bronze[0] != "Gemini" {
+		t.Errorf("Expected Gemini as bronze, got %v", bronze)
 	}
 }
 
@@ -72,13 +124,13 @@ func TestFormatRankingPrompt(t *testing.T) {
 		"GPT":    {Answer: "Answer from GPT"},
 		"Claude": {Answer: "Answer from Claude"},
 	}
-	
+
 	costs := map[string]float64{
 		"Grok":   0.001,
 		"GPT":    0.002,
 		"Claude": 0.0015,
 	}
-	
+
 	allAgents := []string{"Grok", "GPT", "Claude"}
 	anonMap := CreateAnonymizationMap(allAgents)
 

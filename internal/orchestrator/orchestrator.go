@@ -168,8 +168,13 @@ func (o *Orchestrator) ProcessQuestion(
 		"request_id": requestID,
 	})
 
-	winnerID, runnerUpID := ranking.RankModels(ctx, requestID, question, replies, activeModels, questionTS, reqMetrics, o.database, logger)
+	goldIDs, silverIDs, bronzeIDs := ranking.RankModels(ctx, requestID, question, replies, activeModels, questionTS, reqMetrics, o.database, logger)
 
+	// Use first gold winner for metrics completion and broadcast
+	winnerID := ""
+	if len(goldIDs) > 0 {
+		winnerID = goldIDs[0]
+	}
 	reqMetrics.Complete(winnerID)
 
 	logger.Info("question processing complete", slog.Any("metrics", reqMetrics.Summary()))
@@ -179,18 +184,26 @@ func (o *Orchestrator) ProcessQuestion(
 		logger.Error("failed to save to database", slog.Any("error", err))
 	}
 
+	// For backwards compatibility, broadcast first gold and first silver
+	runnerUpID := ""
+	if len(silverIDs) > 0 {
+		runnerUpID = silverIDs[0]
+	}
 	o.broadcaster.Broadcast(map[string]any{
 		"type":       "winner",
 		"model":      winnerID,
 		"runner_up":  runnerUpID,
 		"answer":     replies[winnerID],
+		"gold":       goldIDs,
+		"silver":     silverIDs,
+		"bronze":     bronzeIDs,
 		"request_id": requestID,
 		"metrics":    reqMetrics.Summary(),
 	})
 
 	// Export static HTML
 	if o.exporter != nil {
-		if err := o.exportStaticHTML(ctx, question, questionTS, replies, discussion, winnerID, runnerUpID, activeModels, reqMetrics); err != nil {
+		if err := o.exportStaticHTML(ctx, question, questionTS, replies, discussion, goldIDs, silverIDs, bronzeIDs, activeModels, reqMetrics); err != nil {
 			logger.Error("failed to export static HTML", slog.Any("error", err))
 		}
 	}
@@ -203,7 +216,7 @@ func (o *Orchestrator) exportStaticHTML(
 	questionTS int64,
 	replies map[string]types.Reply,
 	discussion map[string]map[string][]types.DiscussionMessage,
-	winnerID, runnerUpID string,
+	goldIDs, silverIDs, bronzeIDs []string,
 	activeModels []*types.ModelInfo,
 	reqMetrics *metrics.RequestMetrics,
 ) error {
@@ -266,16 +279,32 @@ func (o *Orchestrator) exportStaticHTML(
 		roundCounts[modelID] = len(modelMetrics.RoundMetrics)
 	}
 
+	// Calculate costs for each model
+	modelCosts := make(map[string]string)
+	for _, model := range activeModels {
+		if mm, ok := reqMetrics.ModelMetrics[model.ID]; ok {
+			rate := getRateForModel(model)
+			tokensIn := mm.TotalTokens.Input
+			tokensOut := mm.TotalTokens.Output
+			cost := (float64(tokensIn) * rate.In / 1_000_000) + (float64(tokensOut) * rate.Out / 1_000_000)
+			if cost > 0 {
+				modelCosts[model.ID] = fmt.Sprintf("$%.4f", cost)
+			}
+		}
+	}
+
 	// Prepare export data
 	exportData := htmlexport.ExportData{
 		Question:    question,
 		QuestionTS:  questionTS,
-		WinnerID:    winnerID,
-		RunnerUpID:  runnerUpID,
+		GoldIDs:     goldIDs,
+		SilverIDs:   silverIDs,
+		BronzeIDs:   bronzeIDs,
 		Replies:     replies,
 		Models:      activeModels,
 		Metrics:     reqMetrics.Summary(),
 		RoundCounts: roundCounts,
+		ModelCosts:  modelCosts,
 		Discussions: discussions,
 		Timestamp:   time.Now().Format("2006-01-02 15:04:05 MST"),
 	}

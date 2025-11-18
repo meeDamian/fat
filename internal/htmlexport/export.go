@@ -32,15 +32,18 @@ func New(logger *slog.Logger, answersDir, staticDir string) *Exporter {
 
 type ExportData struct {
 	Question    string
-	QuestionTS  int64 // Unix timestamp for directory
-	WinnerID    string
-	RunnerUpID  string
+	QuestionTS  int64    // Unix timestamp for directory
+	GoldIDs     []string // Models that won gold (can be multiple if tied)
+	SilverIDs   []string // Models that won silver
+	BronzeIDs   []string // Models that won bronze
 	Replies     map[string]types.Reply
 	Models      []*types.ModelInfo
-	Metrics     map[string]interface{}
-	RoundCounts map[string]int // Model ID -> number of rounds completed
+	Metrics     map[string]any
+	RoundCounts map[string]int    // Model ID -> number of rounds completed
+	ModelCosts  map[string]string // Model ID -> formatted cost string
 	Discussions []DiscussionPair
 	Timestamp   string
+	PageTitle   string // Formatted title for HTML <title> tag
 }
 
 type DiscussionPair struct {
@@ -53,11 +56,26 @@ type DiscussionMessage struct {
 	Text string
 }
 
-// GenerateFilename creates a simple filename from the question
-func (e *Exporter) GenerateFilename(ctx context.Context, question string) (string, error) {
+// GenerateFilename creates a filename and page title from the question
+// Returns filename (without .html extension) and page title
+func (e *Exporter) GenerateFilename(ctx context.Context, question string) (string, string, error) {
 	// Use fallback approach (simple and reliable)
 	filename := e.fallbackFilename(question)
-	return filename + ".html", nil
+	// Create a title by capitalizing first letter of each word
+	words := strings.Fields(question)
+	if len(words) > 8 {
+		words = words[:8]
+	}
+	for i, word := range words {
+		if len(word) > 0 {
+			words[i] = strings.ToUpper(string(word[0])) + strings.ToLower(word[1:])
+		}
+	}
+	title := strings.Join(words, " ")
+	if len(title) > 60 {
+		title = title[:60] + "..."
+	}
+	return filename, title, nil
 }
 
 func (e *Exporter) fallbackFilename(question string) string {
@@ -81,11 +99,15 @@ func (e *Exporter) fallbackFilename(question string) string {
 
 // Export generates and saves a static HTML file
 func (e *Exporter) Export(ctx context.Context, data ExportData) error {
-	// Generate filename
-	filename, err := e.GenerateFilename(ctx, data.Question)
+	// Generate filename and page title
+	filenameBase, pageTitle, err := e.GenerateFilename(ctx, data.Question)
 	if err != nil {
 		return fmt.Errorf("generate filename: %w", err)
 	}
+	filename := filenameBase + ".html"
+
+	// Set page title in data
+	data.PageTitle = pageTitle
 
 	// Read CSS from static directory
 	cssPath := filepath.Join(e.staticDir, "style.css")
@@ -139,17 +161,42 @@ func (e *Exporter) generateHTML(data ExportData, cssBytes []byte) (string, error
 			}
 			return result
 		},
+		"contains": func(list []string, item string) bool {
+			for _, v := range list {
+				if v == item {
+					return true
+				}
+			}
+			return false
+		},
+		"sortModels": func(models []*types.ModelInfo) []*types.ModelInfo {
+			// Desired order: grok, gpt, gemini, claude, deepseek, mistral
+			order := []string{"grok", "gpt", "gemini", "claude", "deepseek", "mistral"}
+			sorted := make([]*types.ModelInfo, 0, len(models))
+			for _, id := range order {
+				for _, m := range models {
+					if m.ID == id {
+						sorted = append(sorted, m)
+						break
+					}
+				}
+			}
+			return sorted
+		},
 	}).Parse(htmlTemplate))
 
 	var buf bytes.Buffer
 	if err := tmpl.Execute(&buf, map[string]any{
 		"Question":    data.Question,
-		"WinnerID":    data.WinnerID,
-		"RunnerUpID":  data.RunnerUpID,
+		"PageTitle":   data.PageTitle,
+		"GoldIDs":     data.GoldIDs,
+		"SilverIDs":   data.SilverIDs,
+		"BronzeIDs":   data.BronzeIDs,
 		"Replies":     data.Replies,
 		"Models":      data.Models,
 		"Metrics":     data.Metrics,
 		"RoundCounts": data.RoundCounts,
+		"ModelCosts":  data.ModelCosts,
 		"Discussions": data.Discussions,
 		"Timestamp":   data.Timestamp,
 		"CSS":         template.CSS(cssBytes),
@@ -165,7 +212,7 @@ const htmlTemplate = `<!DOCTYPE html>
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{{.Question}} - Sixfold</title>
+    <title>{{.PageTitle}} - Sixfold</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
@@ -221,6 +268,50 @@ const htmlTemplate = `<!DOCTYPE html>
     white-space: nowrap;
     font-family: 'SF Mono', 'Monaco', 'Consolas', monospace;
 }
+
+.round-dot.filled {
+    background: rgba(124, 92, 255, 1) !important;
+}
+
+.model-card-header {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+}
+
+.model-status {
+    position: static !important;
+    margin: 0 !important;
+}
+
+.model-card.bronze {
+    border-color: #cd7f32 !important;
+}
+
+/* Align discussion text to match bubble side */
+.discussion-message:nth-child(odd) {
+    text-align: left !important;
+}
+
+.discussion-message:nth-child(even) {
+    text-align: right !important;
+}
+
+/* Hero layout - move winners to top in narrow view */
+@media (max-width: 768px) {
+    .gallery-stage {
+        display: flex !important;
+        flex-direction: column !important;
+    }
+    
+    .model-card.winner {
+        order: -2 !important;
+    }
+    
+    .model-card.runner-up {
+        order: -1 !important;
+    }
+}
     </style>
 </head>
 <body>
@@ -242,16 +333,21 @@ const htmlTemplate = `<!DOCTYPE html>
                 <div class="models-layout">
                     <div id="heroStage" class="hero-stage"></div>
                     <div id="galleryStage" class="gallery-stage">
-                        {{range $idx, $model := .Models}}
+                        {{range $idx, $model := sortModels .Models}}
                         {{$reply := index $.Replies $model.ID}}
-                        <article class="model-card{{if eq $model.ID $.WinnerID}} winner{{else if eq $model.ID $.RunnerUpID}} runner-up{{end}}" id="{{$model.ID}}" data-model="{{$model.ID}}">
+                        {{$isGold := contains $.GoldIDs $model.ID}}
+                        {{$isSilver := contains $.SilverIDs $model.ID}}
+                        {{$isBronze := contains $.BronzeIDs $model.ID}}
+                        <article class="model-card{{if $isGold}} winner{{else if $isSilver}} runner-up{{else if $isBronze}} bronze{{end}}" id="{{$model.ID}}" data-model="{{$model.ID}}">
                             <header class="model-card-header">
                                 <div class="model-header-left">
                                     <span class="model-name">{{$model.ID}}</span>
                                     <span class="model-chip">{{modelChip $model.ID $.Models}}</span>
                                 </div>
-                                <span class="model-status visible" aria-hidden="true">{{if eq $model.ID $.WinnerID}}🏆{{else if eq $model.ID $.RunnerUpID}}🥈{{end}}</span>
+                                <span class="model-status visible" aria-hidden="true">{{if $isGold}}🏆{{else if $isSilver}}🥈{{else if $isBronze}}🥉{{end}}</span>
                                 <div class="model-header-right">
+                                    {{$cost := index $.ModelCosts $model.ID}}
+                                    {{if $cost}}<span class="model-cost" data-model="{{$model.ID}}">{{$cost}}</span>{{end}}
                                 </div>
                             </header>
                             <div class="round-progress" data-model="{{$model.ID}}">

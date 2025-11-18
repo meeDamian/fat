@@ -5,7 +5,7 @@ import (
 	"math/rand"
 	"sort"
 	"strings"
-	
+
 	"github.com/meedamian/fat/internal/types"
 )
 
@@ -15,17 +15,17 @@ func CreateAnonymizationMap(allAgents []string) map[string]string {
 	sorted := make([]string, len(allAgents))
 	copy(sorted, allAgents)
 	sort.Strings(sorted)
-	
+
 	// Generate random letter assignments
 	letters := []string{"A", "B", "C", "D", "E", "F", "G", "H"}
 	rand.Shuffle(len(letters), func(i, j int) { letters[i], letters[j] = letters[j], letters[i] })
-	
+
 	// Map real names to anonymous letters
 	anonMap := make(map[string]string)
 	for i, agent := range sorted {
 		anonMap[agent] = letters[i]
 	}
-	
+
 	return anonMap
 }
 
@@ -54,11 +54,11 @@ func FormatRankingPrompt(agentName, question string, otherAgents []string, final
 	b.WriteString("You are acting as a JUDGE, not as a writer.\n")
 	b.WriteString("This is NOT a creative writing task.\n")
 	b.WriteString("Your ENTIRE response must be ONLY the ranked letters.\n\n")
-	
+
 	b.WriteString("# ORIGINAL QUESTION (for context only - DO NOT answer this)\n\n")
 	b.WriteString(question)
 	b.WriteString("\n\n")
-	
+
 	b.WriteString("# ANSWERS TO RANK\n\n")
 
 	// Show answers with anonymous letters and costs
@@ -101,7 +101,7 @@ func FormatRankingPrompt(agentName, question string, otherAgents []string, final
 	b.WriteString("- **Insight** (10%): Depth and originality\n\n")
 	b.WriteString("Note: Lower cost is better when quality is similar. Consider value for money.\n\n")
 	b.WriteString("Be objective. Judge on merit, not identity.\n\n")
-	
+
 	b.WriteString("═══════════════════════════════════════════════════════════════\n")
 	b.WriteString("                    YOUR RESPONSE FORMAT                      \n")
 	b.WriteString("═══════════════════════════════════════════════════════════════\n\n")
@@ -113,7 +113,7 @@ func FormatRankingPrompt(agentName, question string, otherAgents []string, final
 	b.WriteString("NO sections like # ANSWER or # RATIONALE.\n")
 	b.WriteString("NO explanations or commentary.\n")
 	b.WriteString("JUST the list:\n\n")
-	
+
 	// Show example with the anonymous letters
 	for _, agent := range allAgents {
 		b.WriteString(fmt.Sprintf("%s\n", anonMap[agent]))
@@ -122,7 +122,7 @@ func FormatRankingPrompt(agentName, question string, otherAgents []string, final
 	b.WriteString("══════════════════════════════════════════════════════════════\n")
 	b.WriteString("YOUR RESPONSE MUST BE ONLY AGENT LETTERS IN THIS EXACT FORMAT:\n")
 	b.WriteString("══════════════════════════════════════════════════════════════\n\n")
-	
+
 	// Show example ranking with letters (extract from anonMap)
 	exampleLetters := make([]string, 0, len(allAgents))
 	for _, agent := range allAgents {
@@ -133,14 +133,14 @@ func FormatRankingPrompt(agentName, question string, otherAgents []string, final
 	for _, letter := range exampleLetters {
 		b.WriteString(fmt.Sprintf("%s\n", letter))
 	}
-	
+
 	b.WriteString("\n═══════════════════════════════════════════════════════════════\n")
 	b.WriteString("NO OTHER TEXT, NO SECTIONS, NO EXPLANATIONS - JUST THE LIST!\n")
 	b.WriteString("═══════════════════════════════════════════════════════════════\n\n")
 	b.WriteString("REMINDER: Start your response with a letter (A-H), not with \"#\" or text.\n")
 	b.WriteString("If you write \"# ANSWER\" or any explanation, your response is INVALID.\n")
 	b.WriteString("The correct format is ONLY letters, one per line. Nothing else.\n\n")
-	
+
 	// Add mapping at the end for the system to decode (hidden from model's perspective in practice)
 	b.WriteString("<!-- ANONYMIZATION_MAP:")
 	for agent, letter := range anonMap {
@@ -154,30 +154,30 @@ func FormatRankingPrompt(agentName, question string, otherAgents []string, final
 // ParseRanking extracts agent letters from ranking response and decodes them using the prompt's mapping
 func ParseRanking(content string, prompt string) []string {
 	var ranking []string
-	
+
 	// Extract anonymization mapping from prompt
 	letterToAgent := extractAnonymizationMap(prompt)
-	
+
 	// Check if model provided # ANSWER instead of ranking
 	hasAnswerSection := strings.Contains(content, "# ANSWER")
 	if hasAnswerSection {
 		fmt.Printf("DEBUG: Model provided # ANSWER section instead of ranking\n")
 		return ranking
 	}
-	
+
 	hasRankingSection := strings.Contains(content, "# RANKING")
 	lines := strings.Split(content, "\n")
 	inRankingSection := !hasRankingSection // If no section header, assume whole response is ranking
-	
+
 	for _, line := range lines {
 		line = strings.TrimSpace(line)
-		
+
 		// Start capturing after # RANKING header if it exists
 		if strings.HasPrefix(line, "# RANKING") {
 			inRankingSection = true
 			continue
 		}
-		
+
 		// Stop if we hit another section
 		if strings.HasPrefix(line, "#") {
 			break
@@ -185,26 +185,26 @@ func ParseRanking(content string, prompt string) []string {
 
 		if inRankingSection && line != "" {
 			// Skip instruction lines, separators, code blocks
-			if strings.Contains(line, "IMPORTANT:") || 
-			   strings.Contains(line, "Do NOT") || 
-			   strings.Contains(line, "ONLY output") || 
-			   strings.Contains(line, "Reorder") ||
-			   strings.Contains(line, "one per line") || 
-			   strings.Contains(line, "best to worst") ||
-			   strings.Contains(line, "YOUR RESPONSE") ||
-			   strings.Contains(line, "EXACT FORMAT") ||
-			   strings.Contains(line, "NO OTHER TEXT") ||
-			   strings.HasPrefix(line, "(") ||
-			   strings.HasPrefix(line, "═") ||
-			   strings.HasPrefix(line, "╔") ||
-			   strings.HasPrefix(line, "╚") ||
-			   strings.HasPrefix(line, "║") ||
-			   strings.HasPrefix(line, "```") ||
-			   strings.HasPrefix(line, "[") ||
-			   strings.HasPrefix(line, "]") {
+			if strings.Contains(line, "IMPORTANT:") ||
+				strings.Contains(line, "Do NOT") ||
+				strings.Contains(line, "ONLY output") ||
+				strings.Contains(line, "Reorder") ||
+				strings.Contains(line, "one per line") ||
+				strings.Contains(line, "best to worst") ||
+				strings.Contains(line, "YOUR RESPONSE") ||
+				strings.Contains(line, "EXACT FORMAT") ||
+				strings.Contains(line, "NO OTHER TEXT") ||
+				strings.HasPrefix(line, "(") ||
+				strings.HasPrefix(line, "═") ||
+				strings.HasPrefix(line, "╔") ||
+				strings.HasPrefix(line, "╚") ||
+				strings.HasPrefix(line, "║") ||
+				strings.HasPrefix(line, "```") ||
+				strings.HasPrefix(line, "[") ||
+				strings.HasPrefix(line, "]") {
 				continue
 			}
-			
+
 			// Clean up the letter/agent name
 			agentName := strings.TrimSpace(line)
 			agentName, _ = strings.CutPrefix(agentName, "Agent ")
@@ -214,7 +214,7 @@ func ParseRanking(content string, prompt string) []string {
 			agentName = strings.TrimSuffix(agentName, "\"")
 			agentName = strings.TrimSuffix(agentName, ",")
 			agentName = strings.TrimSuffix(agentName, ".")
-			
+
 			// Check if it's a single letter (anonymized)
 			if len(agentName) == 1 && agentName >= "A" && agentName <= "H" {
 				// Decode the letter to real agent name
@@ -236,21 +236,21 @@ func ParseRanking(content string, prompt string) []string {
 // extractAnonymizationMap extracts the letter-to-agent mapping from the prompt
 func extractAnonymizationMap(prompt string) map[string]string {
 	mapping := make(map[string]string)
-	
+
 	// Find the mapping comment in the prompt
 	startIdx := strings.Index(prompt, "<!-- ANONYMIZATION_MAP:")
 	if startIdx == -1 {
 		return mapping
 	}
-	
+
 	endIdx := strings.Index(prompt[startIdx:], "-->")
 	if endIdx == -1 {
 		return mapping
 	}
-	
+
 	mapStr := prompt[startIdx+len("<!-- ANONYMIZATION_MAP:") : startIdx+endIdx]
 	pairs := strings.Fields(mapStr)
-	
+
 	for _, pair := range pairs {
 		parts := strings.Split(pair, "=")
 		if len(parts) == 2 {
@@ -259,15 +259,15 @@ func extractAnonymizationMap(prompt string) map[string]string {
 			mapping[letter] = agent
 		}
 	}
-	
+
 	return mapping
 }
 
 // AggregateRankings combines rankings from multiple agents using Borda count
-// Returns winner (1st place) and runnerUp (2nd place)
-func AggregateRankings(rankings map[string][]string, allAgents []string) (string, string) {
+// Returns gold/silver/bronze winners (with ties handled - multiple models can share a place)
+func AggregateRankings(rankings map[string][]string, allAgents []string) ([]string, []string, []string) {
 	scores := make(map[string]int)
-	
+
 	// Initialize scores
 	for _, agent := range allAgents {
 		scores[agent] = 0
@@ -294,27 +294,33 @@ func AggregateRankings(rankings map[string][]string, allAgents []string) (string
 		fmt.Printf("DEBUG:   %s: %d points\n", agent, score)
 	}
 
-	// Find top 2 winners
-	firstScore := -1
-	secondScore := -1
-	winner := ""
-	runnerUp := ""
-	
+	// Group models by score
+	scoreGroups := make(map[int][]string)
 	for agent, score := range scores {
-		if score > firstScore {
-			// New winner, previous winner becomes runner-up
-			secondScore = firstScore
-			runnerUp = winner
-			firstScore = score
-			winner = agent
-		} else if score > secondScore && agent != winner {
-			// New runner-up
-			secondScore = score
-			runnerUp = agent
-		}
+		scoreGroups[score] = append(scoreGroups[score], agent)
 	}
 
-	fmt.Printf("DEBUG: Winner selected: %s with %d points\n", winner, firstScore)
-	fmt.Printf("DEBUG: Runner-up selected: %s with %d points\n", runnerUp, secondScore)
-	return winner, runnerUp
+	// Get unique scores sorted descending
+	uniqueScores := make([]int, 0, len(scoreGroups))
+	for score := range scoreGroups {
+		uniqueScores = append(uniqueScores, score)
+	}
+	sort.Sort(sort.Reverse(sort.IntSlice(uniqueScores)))
+
+	// Assign medals (handle ties)
+	var gold, silver, bronze []string
+	if len(uniqueScores) > 0 {
+		gold = scoreGroups[uniqueScores[0]]
+		fmt.Printf("DEBUG: Gold (%d pts): %v\n", uniqueScores[0], gold)
+	}
+	if len(uniqueScores) > 1 {
+		silver = scoreGroups[uniqueScores[1]]
+		fmt.Printf("DEBUG: Silver (%d pts): %v\n", uniqueScores[1], silver)
+	}
+	if len(uniqueScores) > 2 {
+		bronze = scoreGroups[uniqueScores[2]]
+		fmt.Printf("DEBUG: Bronze (%d pts): %v\n", uniqueScores[2], bronze)
+	}
+
+	return gold, silver, bronze
 }

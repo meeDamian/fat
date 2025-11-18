@@ -382,21 +382,41 @@ function initWebSocket() {
         } else if (data.type === 'winner') {
             Object.values(cardElements).forEach(card => card.classList.remove('loading'));
 
+            // Handle new medal system with arrays
+            const goldIDs = data.gold || [];
+            const silverIDs = data.silver || [];
+            const bronzeIDs = data.bronze || [];
+            
+            // Legacy support
             const winnerId = data.model;
             const runnerUpId = data.runner_up;
 
             Object.keys(statusIndicators).forEach(model => setCardStatus(model, ''));
 
-            if (winnerId && cardElements[winnerId]) {
-                cardElements[winnerId].classList.add('winner');
-                currentHeroId = winnerId;
-                setCardStatus(winnerId, '🏆');
-            }
+            // Apply gold medals
+            goldIDs.forEach(modelId => {
+                if (cardElements[modelId]) {
+                    cardElements[modelId].classList.add('winner');
+                    setCardStatus(modelId, '🏆');
+                    if (!currentHeroId) currentHeroId = modelId;
+                }
+            });
 
-            if (runnerUpId && cardElements[runnerUpId]) {
-                cardElements[runnerUpId].classList.add('runner-up');
-                setCardStatus(runnerUpId, '🥈');
-            }
+            // Apply silver medals
+            silverIDs.forEach(modelId => {
+                if (cardElements[modelId]) {
+                    cardElements[modelId].classList.add('runner-up');
+                    setCardStatus(modelId, '🥈');
+                }
+            });
+
+            // Apply bronze medals
+            bronzeIDs.forEach(modelId => {
+                if (cardElements[modelId]) {
+                    cardElements[modelId].classList.add('bronze');
+                    setCardStatus(modelId, '🥉');
+                }
+            });
 
             buildHeroLayout(winnerId, runnerUpId);
             
@@ -439,7 +459,7 @@ submitBtn.addEventListener('click', async function() {
     Object.entries(outputs).forEach(([model, output]) => {
         output.innerHTML = '<p class="placeholder">Awaiting model response...</p>';
         output.className = 'model-output loading-text';
-        cardElements[model].classList.remove('winner', 'runner-up', 'error');
+        cardElements[model].classList.remove('winner', 'runner-up', 'bronze', 'error');
         cardElements[model].classList.add('loading');
         setCardStatus(model, '');
         renderRoundDots(model);
