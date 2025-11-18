@@ -3,7 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>FAT AI Model Comparison</title>
+    <title>Sixfold · AI Debate Arena</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
@@ -12,8 +15,8 @@
             <span class="status-led"></span>
         </div>
         <header class="hero">
-            <h1>FAT</h1>
-            <p class="tagline">Four AIs debate. They decide the winner.</p>
+            <h1>Sixfold</h1>
+            <p class="tagline">Six AIs debate. One answer wins.</p>
         </header>
 
         <main class="workspace">
@@ -33,47 +36,6 @@
             <!-- Configuration Panel (hidden by default) -->
             <section id="modelConfig" class="model-config hidden">
                 <div class="config-section">
-                    <h3>Models</h3>
-                    <div class="model-config-grid">
-                        <div class="model-config-item">
-                            <label><strong>Grok</strong> <span class="provider-tag">xAI</span></label>
-                            <select class="model-selector" id="grok-selector" data-family="grok">
-                                <option value="">Loading...</option>
-                            </select>
-                        </div>
-                        <div class="model-config-item">
-                            <label><strong>GPT</strong> <span class="provider-tag">OpenAI</span></label>
-                            <select class="model-selector" id="gpt-selector" data-family="gpt">
-                                <option value="">Loading...</option>
-                            </select>
-                        </div>
-                        <div class="model-config-item">
-                            <label><strong>Claude</strong> <span class="provider-tag">Anthropic</span></label>
-                            <select class="model-selector" id="claude-selector" data-family="claude">
-                                <option value="">Loading...</option>
-                            </select>
-                        </div>
-                        <div class="model-config-item">
-                            <label><strong>Gemini</strong> <span class="provider-tag">Google</span></label>
-                            <select class="model-selector" id="gemini-selector" data-family="gemini">
-                                <option value="">Loading...</option>
-                            </select>
-                        </div>
-                        <div class="model-config-item">
-                            <label><strong>DeepSeek</strong> <span class="provider-tag">DeepSeek</span></label>
-                            <select class="model-selector" id="deepseek-selector" data-family="deepseek">
-                                <option value="">Loading...</option>
-                            </select>
-                        </div>
-                        <div class="model-config-item">
-                            <label><strong>Mistral</strong> <span class="provider-tag">Mistral AI</span></label>
-                            <select class="model-selector" id="mistral-selector" data-family="mistral">
-                                <option value="">Loading...</option>
-                            </select>
-                        </div>
-                    </div>
-                </div>
-                <div class="config-section">
                     <h3>Rounds</h3>
                     <div class="rounds-slider-container">
                         <input type="range" id="roundsSelect" class="rounds-slider" min="3" max="10" value="3" step="1">
@@ -82,16 +44,23 @@
                 </div>
             </section>
 
-            <section id="conversationBoard" class="board hidden" aria-live="polite">
+            <section id="conversationBoard" class="board" aria-live="polite">
                 <div class="models-layout">
                     <div id="heroStage" class="hero-stage"></div>
                     <div id="galleryStage" class="gallery-stage">
                         <article class="model-card" id="grok" data-model="grok">
-                            <header>
-                                <span class="model-name">Grok</span>
+                            <header class="model-card-header">
+                                <div class="model-header-left">
+                                    <span class="model-name">Grok</span>
+                                    <select class="model-selector" id="grok-selector" data-family="grok">
+                                        <option value="">Loading...</option>
+                                    </select>
+                                </div>
                                 <span class="model-status" aria-hidden="true"></span>
-                                <span class="model-cost" data-model="grok"></span>
-                                <span class="model-provider">xAI</span>
+                                <div class="model-header-right">
+                                    <span class="model-cost" data-model="grok"></span>
+                                    <span class="model-provider">xAI</span>
+                                </div>
                             </header>
                             <div class="round-progress" data-model="grok"></div>
                             <div class="model-output" id="grok-output">
@@ -99,11 +68,18 @@
                             </div>
                         </article>
                         <article class="model-card" id="gpt" data-model="gpt">
-                            <header>
-                                <span class="model-name">GPT</span>
+                            <header class="model-card-header">
+                                <div class="model-header-left">
+                                    <span class="model-name">GPT</span>
+                                    <select class="model-selector" id="gpt-selector" data-family="gpt">
+                                        <option value="">Loading...</option>
+                                    </select>
+                                </div>
                                 <span class="model-status" aria-hidden="true"></span>
-                                <span class="model-cost" data-model="gpt"></span>
-                                <span class="model-provider">OpenAI</span>
+                                <div class="model-header-right">
+                                    <span class="model-cost" data-model="gpt"></span>
+                                    <span class="model-provider">OpenAI</span>
+                                </div>
                             </header>
                             <div class="round-progress" data-model="gpt"></div>
                             <div class="model-output" id="gpt-output">
@@ -111,11 +87,18 @@
                             </div>
                         </article>
                         <article class="model-card" id="claude" data-model="claude">
-                            <header>
-                                <span class="model-name">Claude</span>
+                            <header class="model-card-header">
+                                <div class="model-header-left">
+                                    <span class="model-name">Claude</span>
+                                    <select class="model-selector" id="claude-selector" data-family="claude">
+                                        <option value="">Loading...</option>
+                                    </select>
+                                </div>
                                 <span class="model-status" aria-hidden="true"></span>
-                                <span class="model-cost" data-model="claude"></span>
-                                <span class="model-provider">Anthropic</span>
+                                <div class="model-header-right">
+                                    <span class="model-cost" data-model="claude"></span>
+                                    <span class="model-provider">Anthropic</span>
+                                </div>
                             </header>
                             <div class="round-progress" data-model="claude"></div>
                             <div class="model-output" id="claude-output">
@@ -123,11 +106,18 @@
                             </div>
                         </article>
                         <article class="model-card" id="gemini" data-model="gemini">
-                            <header>
-                                <span class="model-name">Gemini</span>
+                            <header class="model-card-header">
+                                <div class="model-header-left">
+                                    <span class="model-name">Gemini</span>
+                                    <select class="model-selector" id="gemini-selector" data-family="gemini">
+                                        <option value="">Loading...</option>
+                                    </select>
+                                </div>
                                 <span class="model-status" aria-hidden="true"></span>
-                                <span class="model-cost" data-model="gemini"></span>
-                                <span class="model-provider">Google</span>
+                                <div class="model-header-right">
+                                    <span class="model-cost" data-model="gemini"></span>
+                                    <span class="model-provider">Google</span>
+                                </div>
                             </header>
                             <div class="round-progress" data-model="gemini"></div>
                             <div class="model-output" id="gemini-output">
@@ -135,11 +125,18 @@
                             </div>
                         </article>
                         <article class="model-card" id="deepseek" data-model="deepseek">
-                            <header>
-                                <span class="model-name">DeepSeek</span>
+                            <header class="model-card-header">
+                                <div class="model-header-left">
+                                    <span class="model-name">DeepSeek</span>
+                                    <select class="model-selector" id="deepseek-selector" data-family="deepseek">
+                                        <option value="">Loading...</option>
+                                    </select>
+                                </div>
                                 <span class="model-status" aria-hidden="true"></span>
-                                <span class="model-cost" data-model="deepseek"></span>
-                                <span class="model-provider">DeepSeek</span>
+                                <div class="model-header-right">
+                                    <span class="model-cost" data-model="deepseek"></span>
+                                    <span class="model-provider">DeepSeek</span>
+                                </div>
                             </header>
                             <div class="round-progress" data-model="deepseek"></div>
                             <div class="model-output" id="deepseek-output">
@@ -147,11 +144,18 @@
                             </div>
                         </article>
                         <article class="model-card" id="mistral" data-model="mistral">
-                            <header>
-                                <span class="model-name">Mistral</span>
+                            <header class="model-card-header">
+                                <div class="model-header-left">
+                                    <span class="model-name">Mistral</span>
+                                    <select class="model-selector" id="mistral-selector" data-family="mistral">
+                                        <option value="">Loading...</option>
+                                    </select>
+                                </div>
                                 <span class="model-status" aria-hidden="true"></span>
-                                <span class="model-cost" data-model="mistral"></span>
-                                <span class="model-provider">Mistral AI</span>
+                                <div class="model-header-right">
+                                    <span class="model-cost" data-model="mistral"></span>
+                                    <span class="model-provider">Mistral AI</span>
+                                </div>
                             </header>
                             <div class="round-progress" data-model="mistral"></div>
                             <div class="model-output" id="mistral-output">
@@ -170,7 +174,7 @@
         </main>
 
         <footer class="footer">
-            <p>Powered by the FAT multi-agent orchestration engine. Monitor the debate, inspect rationales, and collect winners.</p>
+            <span class="footer-text">Made with 🥩 and ☕️ by <a href="https://x.com/meeDamian"><strong>meeDamian</strong></a>.</span>
         </footer>
     </div>
     <script src="/static/app.js"></script>
