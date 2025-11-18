@@ -8,7 +8,7 @@ Users can now select specific model variants for each AI family (Grok, GPT, Clau
 ### Frontend
 1. **Model Dropdowns**: Each model card has a dropdown showing all available variants for that family
 2. **Auto-populated**: Dropdowns are populated from `/models` API endpoint on page load
-3. **Default Selection**: Each dropdown defaults to the active model from `ActiveModels` in `models.go`
+3. **Default Selection**: Each dropdown defaults to the model from `DefaultModels` in `models.go`
 4. **Locked During Processing**: Dropdowns are disabled once "Launch Discussion" is clicked and re-enabled when complete
 
 ### Backend
@@ -44,7 +44,7 @@ Users can now select specific model variants for each AI family (Grok, GPT, Clau
    ```
 
 3. **Dynamic Model Building**: `handleQuestionWS` builds `activeModels` array based on selected variants
-   - Falls back to `ActiveModels` if no selection provided
+   - Falls back to `DefaultModels` if no selection provided
    - Loads appropriate API keys per family
    - Validates variant exists in `ModelFamilies`
 
@@ -96,8 +96,8 @@ ModelFamilies = map[string]types.ModelFamily{
     },
 }
 
-// Set defaults in ActiveModels (used as fallback)
-var ActiveModels = map[string]string{
+// Set defaults in DefaultModels (used as fallback)
+var DefaultModels = map[string]string{
     Grok: Grok4Fast,
 }
 ```

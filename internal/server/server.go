@@ -123,13 +123,13 @@ func (s *Server) Run() error {
 			for variantKey, variant := range family.Variants {
 				variants = append(variants, gin.H{
 					"key":      variantKey,
-					"name":     variant.Name,
+					"name":     variantKey,
 					"rate_in":  variant.Rate.In,
 					"rate_out": variant.Rate.Out,
 				})
 			}
 
-			activeVariant := models.ActiveModels[familyID]
+			activeVariant := models.DefaultModels[familyID]
 
 			familiesData[familyID] = gin.H{
 				"id":       family.ID,
@@ -226,7 +226,7 @@ func (s *Server) handleQuestionWS(conn *websocket.Conn, ctx context.Context, msg
 			}
 		}
 		if variantKey == "" {
-			variantKey = models.ActiveModels[familyID]
+			variantKey = models.DefaultModels[familyID]
 		}
 
 		variant, ok := family.Variants[variantKey]
@@ -239,10 +239,10 @@ func (s *Server) handleQuestionWS(conn *websocket.Conn, ctx context.Context, msg
 
 		mi := &types.ModelInfo{
 			ID:             family.ID,
-			Name:           variant.Name,
+			Name:           variantKey,
 			MaxTok:         variant.MaxTok,
 			BaseURL:        family.BaseURL,
-			Logger:         s.logger.With("model", variant.Name),
+			Logger:         s.logger.With("model", variantKey),
 			RequestTimeout: s.config.ModelRequestTimeout,
 		}
 
@@ -251,7 +251,7 @@ func (s *Server) handleQuestionWS(conn *websocket.Conn, ctx context.Context, msg
 		} else {
 			s.logger.Warn("api key missing for model",
 				slog.String("family", familyID),
-				slog.String("model", variant.Name))
+				slog.String("model", variantKey))
 		}
 
 		activeModels = append(activeModels, mi)

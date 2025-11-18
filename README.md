@@ -4,13 +4,16 @@ Web-based multi-LLM agent collaborative question answering: Models iteratively r
 
 ## Features
 
-- **Multi-Round Collaboration**: Models refine answers across multiple rounds, incorporating feedback from peers
-- **Structured Discussion**: Agents provide targeted suggestions to specific peers using markdown format
-- **Democratic Ranking**: All models vote on final answers using Borda count aggregation
-- **Real-time WebSocket UI**: Live updates as models collaborate
+- **Multi-Round Collaboration**: Models refine answers across multiple rounds (3-10 rounds configurable)
+- **Structured Discussion**: Agents provide targeted feedback to specific peers in markdown format
+- **Democratic Ranking**: All models vote on final answers using Borda count with tie handling
+- **Medal System**: Gold (🏆), Silver (🥈), and Bronze (🥉) awards, with support for ties
+- **Real-time WebSocket UI**: Live updates as models collaborate with responsive layout
+- **Static HTML Export**: Self-contained snapshots of completed debates with all discussions
+- **Model Flexibility**: Switch between variants per family via UI dropdowns
 - **Structured Logging**: JSON-formatted logs with configurable levels
 - **Configurable Timeouts**: Per-model request timeouts with context propagation
-- **Comprehensive Testing**: Unit tests for prompt formatting and response parsing
+- **Comprehensive Testing**: Unit tests for prompt formatting, parsing, and ranking logic
 
 ## Setup
 
@@ -24,9 +27,9 @@ Web-based multi-LLM agent collaborative question answering: Models iteratively r
    ```
 
 3. **Configure API keys** (choose one method):
-   - **Environment variables**: `GROK_KEY`, `GPT_KEY`, `CLAUDE_KEY`, `GEMINI_KEY`
+   - **Environment variables**: `GROK_KEY`, `GPT_KEY`, `CLAUDE_KEY`, `GEMINI_KEY`, `DEEPSEEK_KEY`, `MISTRAL_KEY`
    - **`.env` file**: Same variables as above
-   - **`keys.json`**: `{"grok": "key", "gpt": "key", "claude": "key", "gemini": "key"}`
+   - **`keys.json`**: `{"grok": "key", "gpt": "key", "claude": "key", "gemini": "key", "deepseek": "key", "mistral": "key"}`
 
 4. **Optional configuration** (environment variables):
    - `FAT_SERVER_ADDR`: Server address (default `:4444`)
@@ -46,10 +49,13 @@ The server will start on `http://localhost:4444` (or your configured address).
 
 Open `http://localhost:4444` in your browser and:
 1. Enter your question
-2. Select number of rounds (3-10, default 3)
-3. Click "Ask" to start the collaboration
-4. Watch real-time updates as models discuss and refine answers
-5. See the final winner selected by democratic vote
+2. Select number of rounds (3-10, default 3) using the slider
+3. Optionally switch model variants using the dropdowns on each card
+4. Click "Launch Discussion" to start the collaboration
+5. Watch real-time updates as models discuss and refine answers
+6. See gold/silver/bronze medals awarded by democratic vote
+7. Review agent discussions after ranking completes
+8. Static HTML snapshot automatically saved to `answers/{timestamp}/`
 
 ### Run Tests
 
@@ -95,30 +101,44 @@ Models must respond in strict markdown format:
 
 ### Ranking System
 
-- Each model ranks all agents (including itself) from best to worst
+- Each model ranks all agents (including itself) from best to worst using anonymized letters
 - Borda count scoring: 1st place = n points, 2nd = n-1, etc.
-- Highest total score wins
-- Ties broken by first responder
+- Models with same score tie and receive the same medal
+- Gold (🏆), Silver (🥈), and Bronze (🥉) medals awarded to top 3 score tiers
+- Multiple models can share the same medal level
 
 ## Architecture
 
 ```
-cmd/fat/main.go           - HTTP server, WebSocket handler, orchestration
+cmd/fat/main.go           - Entry point
 internal/
   config/                 - Configuration loading and logger setup
-  models/                 - Model implementations (Grok, GPT, Claude, Gemini)
-  shared/                 - Prompt formatting, response parsing, ranking
+  db/                     - SQLite database for conversation history
+  htmlexport/             - Static HTML snapshot generation
+  metrics/                - Request metrics and cost tracking
+  models/                 - Model family definitions and implementations
+  orchestrator/           - Multi-round collaboration orchestration
+  ranking/                - Model ranking and aggregation
+  server/                 - HTTP server, WebSocket handler, API endpoints
+  shared/                 - Prompt formatting, response parsing
   types/                  - Core types and interfaces
   utils/                  - Logging utilities
-static/                   - Web UI assets
+static/                   - Web UI assets (HTML, CSS, JavaScript)
+answers/                  - Saved conversations and static exports
 ```
 
-## Models
+## Default Models
 
-- **Grok**: `grok-4-fast` (xAI) - 131K context
-- **GPT**: `gpt-5-mini` (OpenAI) - 16K context  
-- **Claude**: `claude-3.5-haiku` (Anthropic) - 200K context
-- **Gemini**: `gemini-2.5-flash` (Google) - 128K context
+See `internal/models/models.go` - `DefaultModels` map:
+
+- **Grok**: `grok-4-fast` (xAI) - 2M context, $0.20/$0.50 per 1M tokens
+- **GPT**: `gpt-5-mini` (OpenAI) - 400K context, $0.25/$2.00 per 1M tokens
+- **Claude**: `claude-4.5-haiku` (Anthropic) - 200K context, $1.00/$5.00 per 1M tokens
+- **Gemini**: `gemini-2.5-pro` (Google) - 1M context, $1.25/$10.00 per 1M tokens
+- **DeepSeek**: `deepseek-chat` (DeepSeek) - 128K context, $0.28/$0.42 per 1M tokens
+- **Mistral**: `mistral-medium` (Mistral AI) - 128K context, $0.40/$2.00 per 1M tokens
+
+All models can be switched via UI dropdowns or by changing `DefaultModels` in code.
 
 ## Logging
 
@@ -129,33 +149,47 @@ All conversations are logged to `answers/` directory:
 
 ## Development
 
-### Adding a New Model
+### Adding a New Model Family
 
-1. Create `internal/models/newmodel.go`
-2. Implement `types.Model` interface
-3. Add to `models.ModelMap` in `internal/models/models.go`
-4. Add case to `NewModel()` factory function
-5. Configure API key loading in `cmd/fat/main.go`
+1. **Add constants** in `internal/models/constants.go` for family ID and variant names
+2. **Add to `ModelFamilies`** in `internal/models/models.go`:
+   ```go
+   NewFamily: {
+       ID:       NewFamily,
+       Provider: "Provider Name",
+       BaseURL:  "https://api.provider.com/endpoint",
+       Variants: map[string]types.ModelVariant{
+           NewModelVariant: {MaxTok: 128_000, Rate: types.Rate{In: 1.0, Out: 2.0}},
+       },
+   },
+   ```
+3. **Add to `DefaultModels`** to set the default variant
+4. **Create implementation** in `internal/models/newfamily.go` implementing `types.Model` interface
+5. **Add case** to `NewModel()` factory function
+6. **Configure API key** loading in `internal/apikeys/apikeys.go`
+
+See `MODELS.md` and `UI_MODEL_SELECTION.md` for detailed documentation.
 
 ### Key Interfaces
 
 ```go
 type Model interface {
     Prompt(ctx context.Context, question string, meta Meta, 
-           replies map[string]string, discussion map[string][]string) (ModelResult, error)
+           replies map[string]Reply, 
+           discussion map[string]map[string][]DiscussionMessage) (ModelResult, error)
 }
 
-type Meta struct {
-    Round       int
-    TotalRounds int
-    OtherAgents []string
+type ModelVariant struct {
+    MaxTok int64 // Max tokens
+    Rate   Rate  // Pricing
 }
 ```
 
 ## Notes
 
-- Uses official SDKs for OpenAI, Anthropic, Gemini; direct HTTP for Grok
+- Uses official SDKs for OpenAI, Anthropic, Gemini; direct HTTP for Grok, DeepSeek, Mistral
 - Context timeouts prevent hanging on slow providers
-- Discussion tracking properly handles multi-agent conversations
+- Discussion tracking handles multi-agent conversations with proper pairing
 - Markdown parsing uses goldmark for robust section extraction
-- All models participate in ranking for democratic selection
+- All models participate in ranking using anonymized agent letters
+- Static HTML exports include full conversation history and styling

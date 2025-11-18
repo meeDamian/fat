@@ -4,12 +4,12 @@
 
 The project uses a hierarchical model structure with **families** (xAI, OpenAI, Anthropic, Google) and **variants** (specific models).
 
-### Single Place to Change Models
+### Single Place to Change Default Models
 
-Edit `internal/models/models.go` - change the `ActiveModels` map:
+Edit `internal/models/models.go` - change the `DefaultModels` map:
 
 ```go
-var ActiveModels = map[string]string{
+var DefaultModels = map[string]string{
     Grok:   Grok4Fast,
     GPT:    GPT5Mini,
     Claude: Claude35Haiku,
@@ -69,7 +69,7 @@ That's it! Everything else (API keys, logging, database) automatically works.
 
 ### Maximum Capability
 ```go
-var ActiveModels = map[string]string{
+var DefaultModels = map[string]string{
     Grok:   Grok4,           // Most capable Grok
     GPT:    GPT5Pro,         // Most capable GPT
     Claude: Claude45Sonnet,  // Latest Claude
@@ -79,17 +79,17 @@ var ActiveModels = map[string]string{
 
 ### Speed/Cost Optimization
 ```go
-var ActiveModels = map[string]string{
+var DefaultModels = map[string]string{
     Grok:   Grok3Mini,       // Fastest Grok
     GPT:    GPT5Nano,        // Smallest GPT
     Claude: Claude35Haiku,   // Fastest Claude
-    Gemini: Gemini25FlashLite, // Lightest Gemini
+    Gemini: Gemini20Flash,   // Fastest Gemini
 }
 ```
 
 ### Code-Focused
 ```go
-var ActiveModels = map[string]string{
+var DefaultModels = map[string]string{
     Grok:   GrokCodeFast1,   // Code-specialized
     GPT:    GPT5Codex,       // Code-specialized
     Claude: Claude45Sonnet,  // Strong at code
@@ -98,9 +98,9 @@ var ActiveModels = map[string]string{
 ```
 
 ### Disable a Model Family
-Remove it from `ActiveModels`:
+Remove it from `DefaultModels`:
 ```go
-var ActiveModels = map[string]string{
+var DefaultModels = map[string]string{
     // Grok:   Grok4Fast,    // Disabled
     GPT:    GPT5Mini,
     Claude: Claude35Haiku,
@@ -128,11 +128,11 @@ ModelFamilies = map[string]types.ModelFamily{
 }
 ```
 
-### ActiveModels
-Single source of truth - change here to switch models:
+### DefaultModels
+Single source of truth - change here to switch default models:
 
 ```go
-var ActiveModels = map[string]string{
+var DefaultModels = map[string]string{
     Grok:   Grok4Fast,      // Family → Variant
     GPT:    GPT5Mini,
     Claude: Claude35Haiku,
@@ -141,7 +141,7 @@ var ActiveModels = map[string]string{
 ```
 
 ### Runtime
-`buildActiveModels()` constructs `ModelInfo` instances from families + active models. API keys are loaded by family ID (not model name), so switching variants requires no other changes.
+`buildDefaultModels()` constructs `ModelInfo` instances from families + default models. API keys are loaded by family ID (not model name), so switching variants requires no other changes.
 
 ## Timeout Configuration
 
@@ -219,7 +219,7 @@ If you see `context deadline exceeded`:
    }
    ```
 
-3. Use it in `ActiveModels`:
+3. Use it in `DefaultModels`:
    ```go
    Claude: ClaudeNewModel,
    ```
