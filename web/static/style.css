@@ -727,6 +727,7 @@ body {
 .answer-text {
     line-height: 1.6;
     color: rgba(237, 236, 255, 0.95);
+    white-space: pre-wrap;
 }
 
 .rationale-text {
@@ -739,6 +740,7 @@ body {
     max-height: 153px;
     overflow-y: auto;
     margin-top: auto;
+    white-space: pre-wrap;
 }
 
 .model-card.winner {
@@ -867,6 +869,7 @@ body {
     line-height: 1.5;
     color: rgba(237, 236, 255, 0.95);
     font-family: 'Inter', 'Segoe UI', Tahoma, sans-serif;
+    white-space: pre-wrap;
 }
 
 /* Chat bubble alternating styles */

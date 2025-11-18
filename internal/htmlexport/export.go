@@ -297,6 +297,13 @@ const htmlTemplate = `<!DOCTYPE html>
     text-align: right !important;
 }
 
+/* Preserve newlines in all text content */
+.answer-text,
+.rationale-text,
+.discussion-text {
+    white-space: pre-wrap !important;
+}
+
 /* Hero layout - move winners to top in narrow view */
 @media (max-width: 768px) {
     .gallery-stage {
