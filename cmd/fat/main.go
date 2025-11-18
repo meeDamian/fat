@@ -5,6 +5,7 @@ import (
 	"log/slog"
 
 	"github.com/meedamian/fat/internal/apikeys"
+	"github.com/meedamian/fat/internal/archiver"
 	"github.com/meedamian/fat/internal/config"
 	"github.com/meedamian/fat/internal/db"
 	"github.com/meedamian/fat/internal/models"
@@ -34,7 +35,7 @@ func main() {
 		allModels = append(allModels, mi)
 	}
 	apikeys.Load(allModels)
-	
+
 	// Log warnings for missing keys
 	for _, mi := range allModels {
 		if mi.APIKey == "" {
@@ -52,6 +53,9 @@ func main() {
 	}
 	defer database.Close()
 	logger.Info("database initialized")
+
+	// Start background archiver for answers/ directory
+	archiver.StartBackgroundArchiver(logger)
 
 	// Create and run server
 	srv := server.New(logger, cfg, database)
