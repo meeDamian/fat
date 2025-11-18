@@ -183,7 +183,7 @@ func FormatPrompt(modelID, modelName, question string, meta types.Meta, replies 
 		b.WriteString("Focus on:\n")
 		b.WriteString("- Answering the question directly and completely\n")
 		b.WriteString("- Using your unique perspective and expertise\n")
-		b.WriteString("- Being concise but thorough (<300 words)\n\n")
+		b.WriteString("- Being concise but thorough\n\n")
 	} else {
 		b.WriteString(fmt.Sprintf("This is round %d of %d - refine your answer based on:\n", meta.Round, meta.TotalRounds))
 		b.WriteString("1. Gaps or weaknesses in other agents' answers\n")
@@ -199,18 +199,18 @@ func FormatPrompt(modelID, modelName, question string, meta types.Meta, replies 
 		b.WriteString("- Challenge assumptions that don't align with the question context\n")
 		b.WriteString("- Identify when agents suggest things already present in the discussion\n")
 		b.WriteString("- Flag violations of the original prompt's requirements (format, length, structure, etc.)\n")
-		b.WriteString("- Provide 1-2 specific, actionable messages (20-50 words each)\n\n")
+		b.WriteString("- Provide 1-2 specific, actionable messages\n\n")
 	}
 
 	b.WriteString("--- RESPONSE FORMAT ---\n\n")
 	b.WriteString("Respond in this EXACT format:\n\n")
 	b.WriteString("# ANSWER\n\n")
 	if meta.Round == 1 {
-		b.WriteString("Your answer to the question (<300 words)\n")
+		b.WriteString("Your answer to the question\n")
 		b.WriteString("IMPORTANT: Include ONLY the raw answer here - no scaffolding, disclaimers, or meta-commentary.\n")
 		b.WriteString("Save explanations for the RATIONALE section.\n\n")
 	} else {
-		b.WriteString("Your refined answer (incorporate feedback, address gaps, <300 words)\n")
+		b.WriteString("Your refined answer (incorporate feedback, address gaps)\n")
 		b.WriteString("IMPORTANT: Include ONLY the raw answer here - no scaffolding, disclaimers, or meta-commentary.\n")
 		b.WriteString("Save explanations for the RATIONALE section.\n\n")
 	}
@@ -228,7 +228,7 @@ func FormatPrompt(modelID, modelName, question string, meta types.Meta, replies 
 		b.WriteString("# DISCUSSION\n\n")
 		b.WriteString("(Optional - only if you have substantive feedback)\n\n")
 		b.WriteString("## With [AgentName]\n\n")
-		b.WriteString("[One specific, actionable suggestion, 20-50 words]\n\n")
+		b.WriteString("[One specific, actionable suggestion]\n\n")
 		b.WriteString("IMPORTANT RULES:\n")
 		b.WriteString("- Omit DISCUSSION section entirely if no substantive feedback\n")
 		b.WriteString("- Each message must suggest a specific improvement or ask a clarifying question\n")
