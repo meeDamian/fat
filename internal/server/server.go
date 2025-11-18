@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"encoding/json"
+	"io/fs"
 	"log/slog"
 	"math/rand"
 	"net/http"
@@ -37,19 +38,21 @@ type Server struct {
 	orchestrator *orchestrator.Orchestrator
 	clients      map[*websocket.Conn]bool
 	clientsMutex sync.Mutex
+	staticFS     fs.FS
 }
 
 // New creates a new Server instance
-func New(logger *slog.Logger, cfg config.Config, database *db.DB) *Server {
+func New(logger *slog.Logger, cfg config.Config, database *db.DB, staticFS fs.FS) *Server {
 	s := &Server{
 		logger:   logger,
 		config:   cfg,
 		database: database,
 		clients:  make(map[*websocket.Conn]bool),
+		staticFS: staticFS,
 	}
 
 	// Create HTML exporter
-	exporter := htmlexport.New(logger, "answers", "static")
+	exporter := htmlexport.New(logger, "answers", "web/static")
 
 	s.orchestrator = orchestrator.New(logger, database, s, exporter)
 	return s
@@ -71,16 +74,60 @@ func (s *Server) Broadcast(message map[string]any) {
 	}
 }
 
+// slogMiddleware creates a Gin middleware that logs HTTP requests using slog
+func (s *Server) slogMiddleware() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		start := time.Now()
+		path := c.Request.URL.Path
+		method := c.Request.Method
+
+		// Process request
+		c.Next()
+
+		// Log after request is processed
+		duration := time.Since(start)
+		status := c.Writer.Status()
+
+		// Choose log level based on status code
+		logFunc := s.logger.Info
+		if status >= 500 {
+			logFunc = s.logger.Error
+		} else if status >= 400 {
+			logFunc = s.logger.Warn
+		}
+
+		logFunc("http request",
+			slog.String("method", method),
+			slog.String("path", path),
+			slog.Int("status", status),
+			slog.Duration("duration", duration),
+			slog.String("ip", c.ClientIP()),
+		)
+	}
+}
+
 // Run starts the HTTP server
 func (s *Server) Run() error {
 	gin.SetMode(gin.ReleaseMode)
 	r := gin.New()
 	r.Use(gin.Recovery())
-	r.Use(gin.Logger())
+	r.Use(s.slogMiddleware())
 
-	r.Static("/static", "./static")
+	// Serve embedded static files
+	staticSubFS, err := fs.Sub(s.staticFS, "static")
+	if err != nil {
+		return err
+	}
+	r.StaticFS("/static", http.FS(staticSubFS))
+
+	// Serve index.html from embedded files
 	r.GET("/", func(c *gin.Context) {
-		c.File("./static/index.html")
+		data, err := fs.ReadFile(s.staticFS, "static/index.html")
+		if err != nil {
+			c.String(500, "Failed to load index.html")
+			return
+		}
+		c.Data(200, "text/html; charset=utf-8", data)
 	})
 	r.GET("/ws", s.handleWebSocket)
 

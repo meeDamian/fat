@@ -6,6 +6,9 @@ import (
 	"os"
 	"strings"
 	"time"
+
+	"github.com/lmittmann/tint"
+	"golang.org/x/term"
 )
 
 type Config struct {
@@ -54,6 +57,21 @@ func NewLogger(level string) (*slog.Logger, error) {
 		return nil, fmt.Errorf("unknown log level %q", level)
 	}
 
-	handler := slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: slogLevel})
+	// Use beautiful colored output for terminal, JSON for pipes/files
+	var handler slog.Handler
+	if term.IsTerminal(int(os.Stdout.Fd())) {
+		// Terminal: use tint for beautiful colored output
+		handler = tint.NewHandler(os.Stdout, &tint.Options{
+			Level:      slogLevel,
+			TimeFormat: "15:04", // 24-hour format
+			AddSource:  slogLevel == slog.LevelDebug,
+		})
+	} else {
+		// Non-terminal (pipe, file, production): use JSON
+		handler = slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
+			Level: slogLevel,
+		})
+	}
+
 	return slog.New(handler), nil
 }

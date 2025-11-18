@@ -11,6 +11,7 @@ import (
 	"github.com/meedamian/fat/internal/models"
 	"github.com/meedamian/fat/internal/server"
 	"github.com/meedamian/fat/internal/types"
+	"github.com/meedamian/fat/web"
 )
 
 func main() {
@@ -57,8 +58,8 @@ func main() {
 	// Start background archiver for answers/ directory
 	archiver.StartBackgroundArchiver(logger)
 
-	// Create and run server
-	srv := server.New(logger, cfg, database)
+	// Create and run server with embedded static files
+	srv := server.New(logger, cfg, database, web.Static)
 	if err := srv.Run(); err != nil {
 		logger.Error("server exited with error", slog.Any("error", err))
 	}

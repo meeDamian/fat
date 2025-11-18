@@ -36,14 +36,55 @@ Web-based multi-LLM agent collaborative question answering: Models iteratively r
    - `FAT_MODEL_TIMEOUT`: Model request timeout (default `30s`)
    - `FAT_LOG_LEVEL`: Log level - `debug`, `info`, `warn`, `error` (default `info`)
 
+## Logging
+
+Beautiful colored terminal output when running interactively:
+```
+15:04 INF loading API keys
+15:04 INF api keys loaded
+15:04 INF initializing database
+15:04 INF database initialized
+15:04 INF starting background archiver interval=1h0m0s
+15:04 INF starting server addr=:4444
+15:04 INF http request method=GET path=/models status=200 duration=683.136µs ip=::1
+15:04 INF http request method=GET path=/ws status=200 duration=4.022797612s ip=::1
+15:04 WRN http request method=GET path=/notfound status=404 duration=74.289µs ip=::1
+```
+
+Features:
+- **Colored levels**: INFO (blue), WARN (yellow), ERROR (red), DEBUG (gray)
+- **Readable timestamps**: 24-hour format (15:04) instead of RFC3339
+- **Smart output**: Beautiful terminal format when running interactively, JSON when piped or in production
+- **Source lines**: Enabled automatically for debug level (`FAT_LOG_LEVEL=debug`)
+
+The logger auto-detects your environment:
+- **Terminal** → Colored, human-readable format
+- **Pipe/File** → JSON for easy parsing and monitoring
+
+## Building
+
+Build a standalone binary with all static files embedded:
+
+```bash
+go build -o fat ./cmd/fat
+```
+
+The resulting `./fat` binary (~55MB) is completely self-contained - all HTML, CSS, and JavaScript are embedded using Go's native `//go:embed` directive (see `web/embed.go`).
+
 ## Usage
 
 ### Start the server:
 ```bash
+# Run directly from source
 go run ./cmd/fat
+
+# Or use the compiled binary
+./fat
 ```
 
 The server will start on `http://localhost:4444` (or your configured address).
+
+**Deployment**: Just copy `./fat` to your server, optionally add a `.env` file for API keys, and run it. No other dependencies needed!
 
 ### Web Interface
 
@@ -140,12 +181,13 @@ See `internal/models/models.go` - `DefaultModels` map:
 
 All models can be switched via UI dropdowns or by changing `DefaultModels` in code.
 
-## Logging
+## Conversation Logging
 
-All conversations are logged to `answers/` directory:
-- Format: `{timestamp}_{sequence}_{round}_{model}.log`
-- Contains both prompt and raw response
-- Structured JSON logs to stdout for server events
+All conversations are automatically saved to the `answers/` directory:
+- **Format**: `{timestamp}_{sequence}_{round}_{model}.log`
+- **Contents**: Both prompt and raw response
+- **Organization**: Auto-archived after 1 week (to `recent/`) and 1 month (to `archive/YYYY-MM/`)
+- **Static HTML**: Self-contained exports created automatically for each debate
 
 ## Development
 
