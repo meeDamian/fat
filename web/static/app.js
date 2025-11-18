@@ -8,7 +8,7 @@ const controlPanel = document.querySelector('.control-panel');
 const hero = document.querySelector('.hero');
 const heroStage = document.getElementById('heroStage');
 const galleryStage = document.getElementById('galleryStage');
-const modelOrder = ['grok', 'gpt', 'claude', 'gemini', 'deepseek', 'mistral'];
+const modelOrder = ['grok', 'gpt', 'gemini', 'claude', 'deepseek', 'mistral'];
 let heroLayoutEnabled = false;
 let currentHeroId = null;
 
