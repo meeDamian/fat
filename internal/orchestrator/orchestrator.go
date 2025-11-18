@@ -9,6 +9,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/meedamian/fat/internal/db"
+	"github.com/meedamian/fat/internal/htmlexport"
 	"github.com/meedamian/fat/internal/metrics"
 	"github.com/meedamian/fat/internal/models"
 	"github.com/meedamian/fat/internal/ranking"
@@ -27,14 +28,16 @@ type Orchestrator struct {
 	logger      *slog.Logger
 	database    *db.DB
 	broadcaster Broadcaster
+	exporter    *htmlexport.Exporter
 }
 
 // New creates a new Orchestrator
-func New(logger *slog.Logger, database *db.DB, broadcaster Broadcaster) *Orchestrator {
+func New(logger *slog.Logger, database *db.DB, broadcaster Broadcaster, exporter *htmlexport.Exporter) *Orchestrator {
 	return &Orchestrator{
 		logger:      logger,
 		database:    database,
 		broadcaster: broadcaster,
+		exporter:    exporter,
 	}
 }
 
@@ -143,16 +146,16 @@ func (o *Orchestrator) ProcessQuestion(
 				}
 
 				o.broadcaster.Broadcast(map[string]any{
-					"type":        "response",
-					"model":       result.modelID,
-					"round":       round + 1,
-					"response":    result.reply.Answer,
-					"rationale":   result.reply.Rationale,
-					"discussion":  result.reply.Discussion,
-					"tokens_in":   result.tokensIn,
-					"tokens_out":  result.tokensOut,
-					"cost":        result.cost,
-					"request_id":  requestID,
+					"type":       "response",
+					"model":      result.modelID,
+					"round":      round + 1,
+					"response":   result.reply.Answer,
+					"rationale":  result.reply.Rationale,
+					"discussion": result.reply.Discussion,
+					"tokens_in":  result.tokensIn,
+					"tokens_out": result.tokensOut,
+					"cost":       result.cost,
+					"request_id": requestID,
 				})
 			}
 		}
@@ -184,15 +187,109 @@ func (o *Orchestrator) ProcessQuestion(
 		"request_id": requestID,
 		"metrics":    reqMetrics.Summary(),
 	})
+
+	// Export static HTML
+	if o.exporter != nil {
+		if err := o.exportStaticHTML(ctx, question, questionTS, replies, discussion, winnerID, runnerUpID, activeModels, reqMetrics); err != nil {
+			logger.Error("failed to export static HTML", slog.Any("error", err))
+		}
+	}
+}
+
+// exportStaticHTML generates and saves a static HTML snapshot
+func (o *Orchestrator) exportStaticHTML(
+	ctx context.Context,
+	question string,
+	questionTS int64,
+	replies map[string]types.Reply,
+	discussion map[string]map[string][]types.DiscussionMessage,
+	winnerID, runnerUpID string,
+	activeModels []*types.ModelInfo,
+	reqMetrics *metrics.RequestMetrics,
+) error {
+	// Convert discussions to export format
+	var discussions []htmlexport.DiscussionPair
+	processed := make(map[string]bool)
+
+	for modelA, partners := range discussion {
+		for modelB, messages := range partners {
+			// Create a unique pair key to avoid duplicates
+			pairKey := modelA + "-" + modelB
+			reversePairKey := modelB + "-" + modelA
+
+			if processed[pairKey] || processed[reversePairKey] {
+				continue
+			}
+			processed[pairKey] = true
+
+			if len(messages) == 0 {
+				continue
+			}
+
+			// Find display names
+			var nameA, nameB string
+			for _, m := range activeModels {
+				if m.ID == modelA {
+					nameA = m.ID
+				}
+				if m.ID == modelB {
+					nameB = m.ID
+				}
+			}
+
+			// Convert messages
+			var exportMessages []htmlexport.DiscussionMessage
+			for _, msg := range messages {
+				var fromName string
+				for _, m := range activeModels {
+					if m.ID == msg.From {
+						fromName = m.ID
+						break
+					}
+				}
+				exportMessages = append(exportMessages, htmlexport.DiscussionMessage{
+					Meta: fmt.Sprintf("%s • Round %d", fromName, msg.Round),
+					Text: msg.Message,
+				})
+			}
+
+			discussions = append(discussions, htmlexport.DiscussionPair{
+				Header:   fmt.Sprintf("%s ⟷ %s", nameA, nameB),
+				Messages: exportMessages,
+			})
+		}
+	}
+
+	// Extract round counts from metrics
+	roundCounts := make(map[string]int)
+	for modelID, modelMetrics := range reqMetrics.ModelMetrics {
+		roundCounts[modelID] = len(modelMetrics.RoundMetrics)
+	}
+
+	// Prepare export data
+	exportData := htmlexport.ExportData{
+		Question:    question,
+		QuestionTS:  questionTS,
+		WinnerID:    winnerID,
+		RunnerUpID:  runnerUpID,
+		Replies:     replies,
+		Models:      activeModels,
+		Metrics:     reqMetrics.Summary(),
+		RoundCounts: roundCounts,
+		Discussions: discussions,
+		Timestamp:   time.Now().Format("2006-01-02 15:04:05 MST"),
+	}
+
+	return o.exporter.Export(ctx, exportData)
 }
 
 type callResult struct {
-	modelID  string
-	reply    types.Reply
-	tokensIn int64
+	modelID   string
+	reply     types.Reply
+	tokensIn  int64
 	tokensOut int64
-	cost     float64
-	err      error
+	cost      float64
+	err       error
 }
 
 func (o *Orchestrator) parallelCall(

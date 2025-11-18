@@ -15,6 +15,7 @@ import (
 	"github.com/meedamian/fat/internal/config"
 	"github.com/meedamian/fat/internal/constants"
 	"github.com/meedamian/fat/internal/db"
+	"github.com/meedamian/fat/internal/htmlexport"
 	"github.com/meedamian/fat/internal/models"
 	"github.com/meedamian/fat/internal/orchestrator"
 	"github.com/meedamian/fat/internal/types"
@@ -46,7 +47,11 @@ func New(logger *slog.Logger, cfg config.Config, database *db.DB) *Server {
 		database: database,
 		clients:  make(map[*websocket.Conn]bool),
 	}
-	s.orchestrator = orchestrator.New(logger, database, s)
+
+	// Create HTML exporter
+	exporter := htmlexport.New(logger, "answers", "static")
+
+	s.orchestrator = orchestrator.New(logger, database, s, exporter)
 	return s
 }
 
@@ -117,9 +122,9 @@ func (s *Server) Run() error {
 			variants := make([]gin.H, 0, len(family.Variants))
 			for variantKey, variant := range family.Variants {
 				variants = append(variants, gin.H{
-					"key":     variantKey,
-					"name":    variant.Name,
-					"rate_in": variant.Rate.In,
+					"key":      variantKey,
+					"name":     variant.Name,
+					"rate_in":  variant.Rate.In,
 					"rate_out": variant.Rate.Out,
 				})
 			}
