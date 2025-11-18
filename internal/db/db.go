@@ -92,6 +92,19 @@ func (db *DB) initSchema() error {
 		FOREIGN KEY (request_id) REFERENCES requests(id)
 	);
 
+	CREATE TABLE IF NOT EXISTS round_replies (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		request_id TEXT NOT NULL,
+		model_id TEXT NOT NULL,
+		round INTEGER NOT NULL,
+		answer TEXT NOT NULL,
+		rationale TEXT,
+		discussion TEXT, -- JSON map of target_agent -> messages
+		created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+		FOREIGN KEY (request_id) REFERENCES requests(id),
+		UNIQUE(request_id, model_id, round)
+	);
+
 	CREATE TABLE IF NOT EXISTS model_stats (
 		model_id TEXT PRIMARY KEY,
 		model_name TEXT NOT NULL,
@@ -110,6 +123,8 @@ func (db *DB) initSchema() error {
 	CREATE INDEX IF NOT EXISTS idx_model_rounds_request ON model_rounds(request_id);
 	CREATE INDEX IF NOT EXISTS idx_model_rounds_model ON model_rounds(model_id);
 	CREATE INDEX IF NOT EXISTS idx_rankings_request ON rankings(request_id);
+	CREATE INDEX IF NOT EXISTS idx_round_replies_request ON round_replies(request_id);
+	CREATE INDEX IF NOT EXISTS idx_round_replies_model_round ON round_replies(model_id, round);
 	`
 
 	_, err := db.conn.Exec(schema)
@@ -157,6 +172,18 @@ type Ranking struct {
 	TokensOut    int64
 	Cost         float64
 	CreatedAt    time.Time
+}
+
+// RoundReply represents a model's reply in a specific round
+type RoundReply struct {
+	ID         int64
+	RequestID  string
+	ModelID    string
+	Round      int
+	Answer     string
+	Rationale  string
+	Discussion string // JSON map of target_agent -> messages
+	CreatedAt  time.Time
 }
 
 // ModelStats represents aggregate statistics for a model
@@ -241,6 +268,70 @@ func (db *DB) SaveRanking(ctx context.Context, r Ranking) error {
 	}
 
 	return nil
+}
+
+// SaveRoundReply saves a model's reply for a specific round
+func (db *DB) SaveRoundReply(ctx context.Context, rr RoundReply) error {
+	query := `
+		INSERT INTO round_replies (
+			request_id, model_id, round, answer, rationale, discussion
+		) VALUES (?, ?, ?, ?, ?, ?)
+		ON CONFLICT(request_id, model_id, round) DO UPDATE SET
+			answer = excluded.answer,
+			rationale = excluded.rationale,
+			discussion = excluded.discussion
+	`
+
+	_, err := db.conn.ExecContext(ctx, query,
+		rr.RequestID, rr.ModelID, rr.Round, rr.Answer, rr.Rationale, rr.Discussion,
+	)
+
+	if err != nil {
+		return fmt.Errorf("failed to save round reply: %w", err)
+	}
+
+	return nil
+}
+
+// GetRoundReplies retrieves all round replies for a request
+func (db *DB) GetRoundReplies(ctx context.Context, requestID string) (map[string]map[int]RoundReply, error) {
+	query := `
+		SELECT id, request_id, model_id, round, answer, rationale, discussion, created_at
+		FROM round_replies
+		WHERE request_id = ?
+		ORDER BY model_id, round
+	`
+
+	rows, err := db.conn.QueryContext(ctx, query, requestID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query round replies: %w", err)
+	}
+	defer rows.Close()
+
+	// Map structure: modelID -> round -> RoundReply
+	replies := make(map[string]map[int]RoundReply)
+
+	for rows.Next() {
+		var rr RoundReply
+		err := rows.Scan(
+			&rr.ID, &rr.RequestID, &rr.ModelID, &rr.Round,
+			&rr.Answer, &rr.Rationale, &rr.Discussion, &rr.CreatedAt,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan round reply: %w", err)
+		}
+
+		if replies[rr.ModelID] == nil {
+			replies[rr.ModelID] = make(map[int]RoundReply)
+		}
+		replies[rr.ModelID][rr.Round] = rr
+	}
+
+	if err = rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating round replies: %w", err)
+	}
+
+	return replies, nil
 }
 
 // UpdateModelStats updates aggregate statistics for a model

@@ -2,6 +2,7 @@ package orchestrator
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"strings"
@@ -117,6 +118,20 @@ func (o *Orchestrator) ProcessQuestion(
 				// Update conversation state
 				replies[result.modelID] = result.reply
 
+				// Save round reply to database
+				discussionJSON, _ := json.Marshal(result.reply.Discussion)
+				roundReply := db.RoundReply{
+					RequestID:  requestID,
+					ModelID:    result.modelID,
+					Round:      round + 1,
+					Answer:     result.reply.Answer,
+					Rationale:  result.reply.Rationale,
+					Discussion: string(discussionJSON),
+				}
+				if err := o.database.SaveRoundReply(ctx, roundReply); err != nil {
+					logger.Warn("failed to save round reply to database", slog.Any("error", err))
+				}
+
 				// Store discussion messages
 				for targetAgent, message := range result.reply.Discussion {
 					targetID := normalizeAgentName(targetAgent, activeModels)
@@ -203,7 +218,7 @@ func (o *Orchestrator) ProcessQuestion(
 
 	// Export static HTML
 	if o.exporter != nil {
-		if err := o.exportStaticHTML(ctx, question, questionTS, replies, discussion, goldIDs, silverIDs, bronzeIDs, scoresByID, activeModels, reqMetrics); err != nil {
+		if err := o.exportStaticHTML(ctx, requestID, question, questionTS, replies, discussion, goldIDs, silverIDs, bronzeIDs, scoresByID, activeModels, reqMetrics); err != nil {
 			logger.Error("failed to export static HTML", slog.Any("error", err))
 		}
 	}
@@ -212,6 +227,7 @@ func (o *Orchestrator) ProcessQuestion(
 // exportStaticHTML generates and saves a static HTML snapshot
 func (o *Orchestrator) exportStaticHTML(
 	ctx context.Context,
+	requestID string,
 	question string,
 	questionTS int64,
 	replies map[string]types.Reply,
@@ -240,14 +256,14 @@ func (o *Orchestrator) exportStaticHTML(
 				continue
 			}
 
-			// Find display names
+			// Find display names with proper formatting
 			var nameA, nameB string
 			for _, m := range activeModels {
 				if m.ID == modelA {
-					nameA = m.ID
+					nameA = formatModelName(m.ID)
 				}
 				if m.ID == modelB {
-					nameB = m.ID
+					nameB = formatModelName(m.ID)
 				}
 			}
 
@@ -257,7 +273,7 @@ func (o *Orchestrator) exportStaticHTML(
 				var fromName string
 				for _, m := range activeModels {
 					if m.ID == msg.From {
-						fromName = m.ID
+						fromName = formatModelName(m.ID)
 						break
 					}
 				}
@@ -268,7 +284,7 @@ func (o *Orchestrator) exportStaticHTML(
 			}
 
 			discussions = append(discussions, htmlexport.DiscussionPair{
-				Header:   fmt.Sprintf("%s ⟷ %s", nameA, nameB),
+				Header:   fmt.Sprintf("%s ↔ %s", nameA, nameB),
 				Messages: exportMessages,
 			})
 		}
@@ -294,21 +310,28 @@ func (o *Orchestrator) exportStaticHTML(
 		}
 	}
 
+	// Load all round replies from database
+	allRoundReplies, err := o.database.GetRoundReplies(ctx, requestID)
+	if err != nil {
+		return fmt.Errorf("failed to load round replies: %w", err)
+	}
+
 	// Prepare export data
 	exportData := htmlexport.ExportData{
-		Question:    question,
-		QuestionTS:  questionTS,
-		GoldIDs:     goldIDs,
-		SilverIDs:   silverIDs,
-		BronzeIDs:   bronzeIDs,
-		Replies:     replies,
-		Models:      activeModels,
-		Metrics:     reqMetrics.Summary(),
-		RoundCounts: roundCounts,
-		ModelCosts:  modelCosts,
-		ModelScores: scoresByID,
-		Discussions: discussions,
-		Timestamp:   time.Now().Format("2006-01-02 15:04:05 MST"),
+		Question:        question,
+		QuestionTS:      questionTS,
+		GoldIDs:         goldIDs,
+		SilverIDs:       silverIDs,
+		BronzeIDs:       bronzeIDs,
+		Replies:         replies,
+		AllRoundReplies: allRoundReplies,
+		Models:          activeModels,
+		Metrics:         reqMetrics.Summary(),
+		RoundCounts:     roundCounts,
+		ModelCosts:      modelCosts,
+		ModelScores:     scoresByID,
+		Discussions:     discussions,
+		Timestamp:       time.Now().Format("2006-01-02 15:04:05 MST"),
 	}
 
 	return o.exporter.Export(ctx, exportData)
@@ -534,6 +557,26 @@ func (o *Orchestrator) saveToDatabase(ctx context.Context, reqMetrics *metrics.R
 }
 
 // normalizeAgentName converts any agent name variant to model ID
+// formatModelName formats model IDs to match live site display names
+func formatModelName(id string) string {
+	switch id {
+	case "grok":
+		return "Grok"
+	case "gpt":
+		return "GPT"
+	case "gemini":
+		return "Gemini"
+	case "claude":
+		return "Claude"
+	case "deepseek":
+		return "DeepSeek"
+	case "mistral":
+		return "Mistral"
+	default:
+		return id
+	}
+}
+
 func normalizeAgentName(agentName string, activeModels []*types.ModelInfo) string {
 	agentName = strings.TrimSpace(agentName)
 	agentName = strings.ToLower(agentName)
