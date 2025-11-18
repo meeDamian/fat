@@ -27,22 +27,14 @@
                         <button id="submitBtn" class="primary-btn">Launch Discussion</button>
                     </div>
                     <div class="control-footer">
-                        <div class="spacer"></div>
-                        <a href="#" id="toggleConfig" class="toggle-config-link">⚙️ Configure</a>
+                        <div class="rounds-slider-container">
+                            <input type="range" id="roundsSelect" class="rounds-slider" min="3" max="10" value="3" step="1">
+                            <div class="rounds-value"><span id="roundsValue">3</span> rounds</div>
+                        </div>
                     </div>
                 </div>
             </section>
 
-            <!-- Configuration Panel (hidden by default) -->
-            <section id="modelConfig" class="model-config hidden">
-                <div class="config-section">
-                    <h3>Rounds</h3>
-                    <div class="rounds-slider-container">
-                        <input type="range" id="roundsSelect" class="rounds-slider" min="3" max="10" value="3" step="1">
-                        <div class="rounds-value"><span id="roundsValue">3</span> rounds</div>
-                    </div>
-                </div>
-            </section>
 
             <section id="conversationBoard" class="board" aria-live="polite">
                 <div class="models-layout">

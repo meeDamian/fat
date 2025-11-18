@@ -428,8 +428,12 @@ submitBtn.addEventListener('click', async function() {
     // Transition to compact mode
     controlPanel.classList.remove('initial');
     hero.classList.add('compact');
-    modelConfig.classList.add('hidden');
-    toggleConfigLink.textContent = '⚙️ Configure';
+    if (modelConfig) {
+        modelConfig.classList.add('hidden');
+    }
+    if (toggleConfigLink) {
+        toggleConfigLink.textContent = '⚙️ Configure';
+    }
 
     conversationBoard.classList.remove('hidden');
     Object.entries(outputs).forEach(([model, output]) => {
@@ -628,13 +632,15 @@ function getSelectedModels() {
 }
 
 // Toggle configuration panel
-toggleConfigLink.addEventListener('click', function(e) {
-    e.preventDefault();
-    modelConfig.classList.toggle('hidden');
-    toggleConfigLink.textContent = modelConfig.classList.contains('hidden') 
-        ? '⚙️ Configure' 
-        : '✕ Close';
-});
+if (toggleConfigLink && modelConfig) {
+    toggleConfigLink.addEventListener('click', function(e) {
+        e.preventDefault();
+        modelConfig.classList.toggle('hidden');
+        toggleConfigLink.textContent = modelConfig.classList.contains('hidden') 
+            ? '⚙️ Configure' 
+            : '✕ Close';
+    });
+}
 
 // Set initial state
 controlPanel.classList.add('initial');
