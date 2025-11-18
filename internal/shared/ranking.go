@@ -264,8 +264,8 @@ func extractAnonymizationMap(prompt string) map[string]string {
 }
 
 // AggregateRankings combines rankings from multiple agents using Borda count
-// Returns gold/silver/bronze winners (with ties handled - multiple models can share a place)
-func AggregateRankings(rankings map[string][]string, allAgents []string) ([]string, []string, []string) {
+// Returns gold/silver/bronze winners (with ties handled - multiple models can share a place) and scores
+func AggregateRankings(rankings map[string][]string, allAgents []string) ([]string, []string, []string, map[string]int) {
 	scores := make(map[string]int)
 
 	// Initialize scores
@@ -322,5 +322,5 @@ func AggregateRankings(rankings map[string][]string, allAgents []string) ([]stri
 		fmt.Printf("DEBUG: Bronze (%d pts): %v\n", uniqueScores[2], bronze)
 	}
 
-	return gold, silver, bronze
+	return gold, silver, bronze, scores
 }

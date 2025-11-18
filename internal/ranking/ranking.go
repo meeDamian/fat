@@ -16,7 +16,7 @@ import (
 )
 
 // RankModels executes the ranking phase where all models rank each other's responses
-// Returns gold, silver, and bronze winner IDs (can have multiple winners for ties)
+// Returns gold, silver, and bronze winner IDs (can have multiple winners for ties) and scores by model ID
 func RankModels(
 	ctx context.Context,
 	requestID string,
@@ -27,7 +27,7 @@ func RankModels(
 	reqMetrics *metrics.RequestMetrics,
 	database *db.DB,
 	logger *slog.Logger,
-) ([]string, []string, []string) {
+) ([]string, []string, []string, map[string]int) {
 	logger = logger.With("request_id", requestID)
 	logger.Info("starting ranking phase", slog.Int("num_models", len(activeModels)))
 
@@ -157,14 +157,20 @@ func RankModels(
 		slog.Int("valid_rankings", len(rankings)),
 		slog.Int("total_models", len(activeModels)))
 
-	goldNames, silverNames, bronzeNames := shared.AggregateRankings(rankings, allAgentNames)
+	goldNames, silverNames, bronzeNames, scoresByName := shared.AggregateRankings(rankings, allAgentNames)
 
 	// Convert names back to IDs
 	goldIDs := make([]string, 0, len(goldNames))
 	silverIDs := make([]string, 0, len(silverNames))
 	bronzeIDs := make([]string, 0, len(bronzeNames))
+	scoresByID := make(map[string]int)
 
 	for _, mi := range activeModels {
+		// Map score from name to ID
+		if score, ok := scoresByName[mi.Name]; ok {
+			scoresByID[mi.ID] = score
+		}
+
 		for _, name := range goldNames {
 			if mi.Name == name {
 				goldIDs = append(goldIDs, mi.ID)
@@ -187,20 +193,20 @@ func RankModels(
 			slog.Any("gold", goldNames),
 			slog.Any("silver", silverNames),
 			slog.Any("bronze", bronzeNames))
-		return goldIDs, silverIDs, bronzeIDs
+		return goldIDs, silverIDs, bronzeIDs, scoresByID
 	}
 
 	// Fallback to first model with response
 	for _, mi := range activeModels {
 		if _, ok := replies[mi.ID]; ok {
 			logger.Warn("ranking fallback to first responder", slog.String("model", mi.ID))
-			return []string{mi.ID}, []string{}, []string{}
+			return []string{mi.ID}, []string{}, []string{}, map[string]int{}
 		}
 	}
 
 	// Final fallback
 	logger.Warn("no ranking winner, returning first active model")
-	return []string{activeModels[0].ID}, []string{}, []string{}
+	return []string{activeModels[0].ID}, []string{}, []string{}, map[string]int{}
 }
 
 // getRateForModel retrieves the pricing rate for a model by looking up its variant

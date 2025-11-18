@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strings"
 	"time"
 
@@ -41,6 +42,7 @@ type ExportData struct {
 	Metrics     map[string]any
 	RoundCounts map[string]int    // Model ID -> number of rounds completed
 	ModelCosts  map[string]string // Model ID -> formatted cost string
+	ModelScores map[string]int    // Model ID -> ranking score
 	Discussions []DiscussionPair
 	Timestamp   string
 	PageTitle   string // Formatted title for HTML <title> tag
@@ -169,18 +171,15 @@ func (e *Exporter) generateHTML(data ExportData, cssBytes []byte) (string, error
 			}
 			return false
 		},
-		"sortModels": func(models []*types.ModelInfo) []*types.ModelInfo {
-			// Desired order: grok, gpt, gemini, claude, deepseek, mistral
-			order := []string{"grok", "gpt", "gemini", "claude", "deepseek", "mistral"}
-			sorted := make([]*types.ModelInfo, 0, len(models))
-			for _, id := range order {
-				for _, m := range models {
-					if m.ID == id {
-						sorted = append(sorted, m)
-						break
-					}
-				}
-			}
+		"sortModels": func(models []*types.ModelInfo, scores map[string]int) []*types.ModelInfo {
+			// Sort by score descending
+			sorted := make([]*types.ModelInfo, len(models))
+			copy(sorted, models)
+			sort.Slice(sorted, func(i, j int) bool {
+				scoreI := scores[sorted[i].ID]
+				scoreJ := scores[sorted[j].ID]
+				return scoreI > scoreJ // Higher scores first
+			})
 			return sorted
 		},
 	}).Parse(htmlTemplate))
@@ -197,6 +196,7 @@ func (e *Exporter) generateHTML(data ExportData, cssBytes []byte) (string, error
 		"Metrics":     data.Metrics,
 		"RoundCounts": data.RoundCounts,
 		"ModelCosts":  data.ModelCosts,
+		"ModelScores": data.ModelScores,
 		"Discussions": data.Discussions,
 		"Timestamp":   data.Timestamp,
 		"CSS":         template.CSS(cssBytes),
@@ -304,6 +304,31 @@ const htmlTemplate = `<!DOCTYPE html>
     white-space: pre-wrap !important;
 }
 
+/* Centered medal */
+.model-medal-center {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 12px 0 8px 0;
+}
+
+.model-medal {
+    font-size: 48px;
+    line-height: 1;
+}
+
+/* Round dots are not interactive in static export */
+.round-dot {
+    cursor: default !important;
+}
+
+/* Ensure cost is visible */
+.model-cost {
+    display: inline-block !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+}
+
 /* Hero layout - move winners to top in narrow view */
 @media (max-width: 768px) {
     .gallery-stage {
@@ -340,21 +365,25 @@ const htmlTemplate = `<!DOCTYPE html>
                 <div class="models-layout">
                     <div id="heroStage" class="hero-stage"></div>
                     <div id="galleryStage" class="gallery-stage">
-                        {{range $idx, $model := sortModels .Models}}
+                        {{range $idx, $model := sortModels .Models .ModelScores}}
                         {{$reply := index $.Replies $model.ID}}
                         {{$isGold := contains $.GoldIDs $model.ID}}
                         {{$isSilver := contains $.SilverIDs $model.ID}}
                         {{$isBronze := contains $.BronzeIDs $model.ID}}
                         <article class="model-card{{if $isGold}} winner{{else if $isSilver}} runner-up{{else if $isBronze}} bronze{{end}}" id="{{$model.ID}}" data-model="{{$model.ID}}">
+                            {{if or $isGold $isSilver $isBronze}}
+                            <div class="model-medal-center">
+                                <span class="model-medal">{{if $isGold}}🏆{{else if $isSilver}}🥈{{else if $isBronze}}🥉{{end}}</span>
+                            </div>
+                            {{end}}
                             <header class="model-card-header">
                                 <div class="model-header-left">
                                     <span class="model-name">{{$model.ID}}</span>
                                     <span class="model-chip">{{modelChip $model.ID $.Models}}</span>
                                 </div>
-                                <span class="model-status visible" aria-hidden="true">{{if $isGold}}🏆{{else if $isSilver}}🥈{{else if $isBronze}}🥉{{end}}</span>
                                 <div class="model-header-right">
                                     {{$cost := index $.ModelCosts $model.ID}}
-                                    {{if $cost}}<span class="model-cost" data-model="{{$model.ID}}">{{$cost}}</span>{{end}}
+                                    {{if $cost}}<span class="model-cost">{{$cost}}</span>{{end}}
                                 </div>
                             </header>
                             <div class="round-progress" data-model="{{$model.ID}}">

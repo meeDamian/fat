@@ -53,7 +53,7 @@ func TestAggregateRankings(t *testing.T) {
 
 	allAgents := []string{"Grok", "GPT", "Claude"}
 
-	gold, silver, bronze := AggregateRankings(rankings, allAgents)
+	gold, silver, bronze, _ := AggregateRankings(rankings, allAgents)
 
 	// Grok should win: 3+2+3=8 points
 	// GPT: 2+3+1=6 points
@@ -80,7 +80,7 @@ func TestAggregateRankingsWithTies(t *testing.T) {
 
 	allAgents := []string{"Grok", "GPT", "Claude", "Gemini"}
 
-	gold, silver, bronze := AggregateRankings(rankings, allAgents)
+	gold, silver, bronze, _ := AggregateRankings(rankings, allAgents)
 
 	// Grok: 4+3+4+3=14 points
 	// GPT: 3+4+3+4=14 points (tied for gold!)

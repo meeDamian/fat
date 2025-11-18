@@ -168,7 +168,7 @@ func (o *Orchestrator) ProcessQuestion(
 		"request_id": requestID,
 	})
 
-	goldIDs, silverIDs, bronzeIDs := ranking.RankModels(ctx, requestID, question, replies, activeModels, questionTS, reqMetrics, o.database, logger)
+	goldIDs, silverIDs, bronzeIDs, scoresByID := ranking.RankModels(ctx, requestID, question, replies, activeModels, questionTS, reqMetrics, o.database, logger)
 
 	// Use first gold winner for metrics completion and broadcast
 	winnerID := ""
@@ -203,7 +203,7 @@ func (o *Orchestrator) ProcessQuestion(
 
 	// Export static HTML
 	if o.exporter != nil {
-		if err := o.exportStaticHTML(ctx, question, questionTS, replies, discussion, goldIDs, silverIDs, bronzeIDs, activeModels, reqMetrics); err != nil {
+		if err := o.exportStaticHTML(ctx, question, questionTS, replies, discussion, goldIDs, silverIDs, bronzeIDs, scoresByID, activeModels, reqMetrics); err != nil {
 			logger.Error("failed to export static HTML", slog.Any("error", err))
 		}
 	}
@@ -217,6 +217,7 @@ func (o *Orchestrator) exportStaticHTML(
 	replies map[string]types.Reply,
 	discussion map[string]map[string][]types.DiscussionMessage,
 	goldIDs, silverIDs, bronzeIDs []string,
+	scoresByID map[string]int,
 	activeModels []*types.ModelInfo,
 	reqMetrics *metrics.RequestMetrics,
 ) error {
@@ -305,6 +306,7 @@ func (o *Orchestrator) exportStaticHTML(
 		Metrics:     reqMetrics.Summary(),
 		RoundCounts: roundCounts,
 		ModelCosts:  modelCosts,
+		ModelScores: scoresByID,
 		Discussions: discussions,
 		Timestamp:   time.Now().Format("2006-01-02 15:04:05 MST"),
 	}
