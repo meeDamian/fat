@@ -426,6 +426,11 @@ function initWebSocket() {
             submitBtn.textContent = '✓ Complete';
             submitBtn.disabled = false;
             setSelectorsEnabled(true);
+
+            // Show random question button again
+            if (randomQuestionBtn) {
+                randomQuestionBtn.classList.remove('hidden');
+            }
         }
     };
 
@@ -876,6 +881,43 @@ function buildDiscussionsSection() {
 }
 
 // Initialize WebSocket connection
-prefillRandomQuestion(true);
-loadModels();
+// Random Question Logic
+const randomQuestionBtn = document.getElementById('randomQuestionBtn');
+
+async function prefillRandomQuestion(force = false) {
+    if (!force && questionInput.value.trim()) return;
+
+    try {
+        questionInput.setAttribute('placeholder', 'Loading random question...');
+        const question = await fetchRandomQuestion();
+        if (question) {
+            questionInput.value = question;
+            // Ensure button is visible initially if it was hidden
+            randomQuestionBtn.classList.remove('hidden');
+        }
+    } catch (error) {
+        console.error('Error prefilling random question:', error);
+    } finally {
+        questionInput.setAttribute('placeholder', 'Ask a question...');
+    }
+}
+
+// Event Listeners for Random Question
+if (randomQuestionBtn) {
+    randomQuestionBtn.addEventListener('click', () => {
+        prefillRandomQuestion(true);
+    });
+}
+
+if (questionInput) {
+    questionInput.addEventListener('input', () => {
+        if (randomQuestionBtn) {
+            randomQuestionBtn.classList.add('hidden');
+        }
+    });
+}
+
+// Initialize
 initWebSocket();
+loadModels();
+prefillRandomQuestion(true);
