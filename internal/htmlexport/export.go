@@ -295,18 +295,18 @@ const htmlTemplate = `<!DOCTYPE html>
 }
 
 .static-question {
-    background: linear-gradient(135deg, rgba(15, 23, 42, 0.98), rgba(30, 41, 59, 0.95));
-    border: 1px solid rgba(51, 65, 85, 0.9);
-    border-radius: 18px;
-    padding: clamp(24px, 5vw, 36px);
+    background: rgba(15, 23, 42, 0.5);
+    border: 1px solid var(--border-subtle);
+    border-radius: 24px;
+    padding: clamp(24px, 4vw, 36px);
     margin-bottom: 32px;
-    box-shadow: 0 12px 40px rgba(15, 23, 42, 0.8);
+    box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.2);
 }
 
 .static-question h2 {
-    font-size: 14px;
+    font-size: 13px;
     font-weight: 700;
-    color: rgba(148, 163, 184, 0.9);
+    color: var(--text-muted);
     text-transform: uppercase;
     letter-spacing: 0.08em;
     margin: 0 0 16px 0;
@@ -315,7 +315,7 @@ const htmlTemplate = `<!DOCTYPE html>
 .static-question p {
     font-size: 20px;
     line-height: 1.6;
-    color: rgba(255, 255, 255, 0.95);
+    color: var(--text-main);
     margin: 0;
     font-weight: 500;
     white-space: pre-wrap;
@@ -326,18 +326,20 @@ const htmlTemplate = `<!DOCTYPE html>
 }
 
 .model-chip {
-    font-size: 12px;
-    padding: 4px 10px;
-    border-radius: 999px;
-    background: rgba(124, 92, 255, 0.25);
-    color: rgba(167, 139, 250, 1);
-    font-weight: 500;
+    font-size: 11px;
+    padding: 4px 8px;
+    border-radius: 6px;
+    background: rgba(255, 255, 255, 0.05);
+    color: var(--text-muted);
+    font-weight: 600;
     white-space: nowrap;
-    font-family: 'SF Mono', 'Monaco', 'Consolas', monospace;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
 }
 
 .round-dot.filled {
-    background: rgba(124, 92, 255, 1) !important;
+    background: var(--accent-primary) !important;
+    box-shadow: 0 0 8px rgba(56, 189, 248, 0.4);
 }
 
 .model-card-header {
@@ -382,6 +384,7 @@ const htmlTemplate = `<!DOCTYPE html>
 .model-medal {
     font-size: 48px;
     line-height: 1;
+    filter: drop-shadow(0 4px 8px rgba(0,0,0,0.3));
 }
 
 /* Round dots are now interactive in static export */
@@ -392,6 +395,7 @@ const htmlTemplate = `<!DOCTYPE html>
 
 .round-dot.filled:hover {
     transform: scale(1.2);
+    background: #fff !important;
 }
 
 /* Ensure cost is visible with proper styling */
@@ -441,8 +445,8 @@ const htmlTemplate = `<!DOCTYPE html>
     padding: 8px 16px;
     background: rgba(15, 13, 30, 0.6);
     border: 1px solid rgba(124, 92, 255, 0.3);
-    border-radius: 999px;
-    color: rgba(255, 255, 255, 0.7);
+    border-radius: 20px;
+    color: rgba(237, 236, 255, 0.85);
     font-size: 13px;
     font-weight: 500;
     cursor: pointer;
