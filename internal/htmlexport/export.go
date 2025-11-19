@@ -344,8 +344,10 @@ const htmlTemplate = `<!DOCTYPE html>
 
 .model-card-header {
     display: flex !important;
+    flex-wrap: wrap !important;
     align-items: center !important;
     justify-content: space-between !important;
+    gap: 12px !important;
 }
 
 .model-status {
@@ -492,8 +494,8 @@ const htmlTemplate = `<!DOCTYPE html>
 <body>
     <div class="app-shell">
         <header class="hero compact">
-            <h1>Sixfold</h1>
-            <p class="tagline">Six AIs debate. One answer wins.</p>
+            <h1>Nexus</h1>
+            <p class="tagline">Collaborative Intelligence.</p>
         </header>
 
         <main class="workspace">
@@ -533,8 +535,8 @@ const htmlTemplate = `<!DOCTYPE html>
     // Render page on load
     document.addEventListener('DOMContentLoaded', function() {
         // Set page title
-        document.getElementById('pageTitle').textContent = DATA.pageTitle + ' - Sixfold';
-        document.title = DATA.pageTitle + ' - Sixfold';
+        document.getElementById('pageTitle').textContent = DATA.pageTitle + ' - Nexus';
+        document.title = DATA.pageTitle + ' - Nexus';
         
         // Set question
         document.getElementById('questionText').textContent = DATA.question;
@@ -601,6 +603,7 @@ const htmlTemplate = `<!DOCTYPE html>
                     '</div>' +
                     '<div class="model-header-right">' +
                         costHTML +
+                        '<span class="model-provider">' + provider + '</span>' +
                     '</div>' +
                 '</header>' +
                 '<div class="round-progress" data-model="' + model.ID + '">' +

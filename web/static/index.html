@@ -1,34 +1,40 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sixfold · AI Debate Arena</title>
+    <title>Nexus · Collaborative Intelligence</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap"
+        rel="stylesheet">
     <link rel="stylesheet" href="/static/style.css">
 </head>
+
 <body>
     <div class="app-shell">
         <div class="connection-status" id="connectionStatus" title="Backend connection status">
             <span class="status-led"></span>
         </div>
         <header class="hero">
-            <h1>Sixfold</h1>
-            <p class="tagline">Six AIs debate. One answer wins.</p>
+            <h1>Nexus</h1>
+            <p class="tagline">Collaborative Intelligence.</p>
         </header>
 
         <main class="workspace">
             <section class="control-panel" aria-label="Question controls">
                 <div class="control-inputs">
                     <div class="input-wrapper">
-                        <textarea id="questionInput" placeholder="Ask a question..." rows="3" autocomplete="off"></textarea>
+                        <textarea id="questionInput" placeholder="Ask a question..." rows="3"
+                            autocomplete="off"></textarea>
                         <button id="submitBtn" class="primary-btn">Launch Discussion</button>
                     </div>
                     <div class="control-footer">
                         <div class="rounds-slider-container">
-                            <input type="range" id="roundsSelect" class="rounds-slider" min="3" max="10" value="3" step="1">
+                            <input type="range" id="roundsSelect" class="rounds-slider" min="3" max="10" value="3"
+                                step="1">
                             <div class="rounds-value"><span id="roundsValue">3</span> rounds</div>
                         </div>
                     </div>
@@ -166,9 +172,11 @@
         </main>
 
         <footer class="footer">
-            <span class="footer-text">Made with 🥩 and ☕️ by <a href="https://x.com/meeDamian"><strong>meeDamian</strong></a>.</span>
+            <span class="footer-text">Made with 🥩 and ☕️ by <a
+                    href="https://x.com/meeDamian"><strong>meeDamian</strong></a>.</span>
         </footer>
     </div>
     <script src="/static/app.js"></script>
 </body>
+
 </html>

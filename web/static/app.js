@@ -77,22 +77,22 @@ function updateCostColors() {
     // Get all non-zero costs
     const costs = Object.values(modelCosts).filter(c => c > 0);
     if (costs.length === 0) return;
-    
+
     const minCost = Math.min(...costs);
     const maxCost = Math.max(...costs);
     const range = maxCost - minCost;
-    
+
     // Apply gradient colors to each model
     for (const model in modelCosts) {
         const cost = modelCosts[model];
         if (cost === 0) continue;
-        
+
         const indicator = costIndicators[model];
         if (!indicator) continue;
-        
+
         // Calculate position in range (0 = cheapest, 1 = most expensive)
         const position = range === 0 ? 0 : (cost - minCost) / range;
-        
+
         // Green -> Yellow -> Red gradient
         let r, g, b;
         if (position < 0.5) {
@@ -108,7 +108,7 @@ function updateCostColors() {
             g = Math.round(235 * (1 - t)); // 235 to 0
             b = 0;
         }
-        
+
         // Apply colors
         indicator.style.backgroundColor = `rgba(${r}, ${g}, ${b}, 0.2)`;
         indicator.style.color = `rgb(${r}, ${g}, ${b})`;
@@ -262,11 +262,11 @@ function showRoundResponse(model, round) {
     if (!state) return;
     const response = state.responses[round - 1];
     const rationale = state.rationales[round - 1];
-    
+
     const output = outputs[model];
     output.className = 'model-output';
     output.innerHTML = '';
-    
+
     // If there's a response, show it
     if (response) {
         const answerDiv = document.createElement('div');
@@ -274,7 +274,7 @@ function showRoundResponse(model, round) {
         answerDiv.textContent = response;
         output.appendChild(answerDiv);
     }
-    
+
     // Show rationale if present
     if (rationale) {
         const rationaleDiv = document.createElement('div');
@@ -313,12 +313,12 @@ function initWebSocket() {
     updateConnectionStatus('connecting');
     ws = new WebSocket('ws://localhost:4444/ws');
 
-    ws.onopen = function(event) {
+    ws.onopen = function (event) {
         console.log('WebSocket connected');
         updateConnectionStatus('connected');
     };
 
-    ws.onmessage = function(event) {
+    ws.onmessage = function (event) {
         const data = JSON.parse(event.data);
         if (data.type === 'clear') {
             const total = parseInt(roundsSelect.value, 10) || 1;
@@ -349,12 +349,12 @@ function initWebSocket() {
                 markRoundCompleted(data.model, data.round, data.response, data.rationale, data.discussion);
                 showRoundResponse(data.model, data.round);
                 setActiveDot(data.model, data.round);
-                
+
                 // Update cost if provided
                 if (data.cost !== undefined) {
                     updateCostIndicator(data.model, data.cost);
                 }
-                
+
                 // Update discussions section if there are any discussions
                 if (data.discussion && Object.keys(data.discussion).length > 0) {
                     buildDiscussionsSection();
@@ -386,7 +386,7 @@ function initWebSocket() {
             const goldIDs = data.gold || [];
             const silverIDs = data.silver || [];
             const bronzeIDs = data.bronze || [];
-            
+
             // Legacy support
             const winnerId = data.model;
             const runnerUpId = data.runner_up;
@@ -419,7 +419,7 @@ function initWebSocket() {
             });
 
             buildHeroLayout(winnerId, runnerUpId);
-            
+
             // Build and show discussions
             buildDiscussionsSection();
 
@@ -429,19 +429,19 @@ function initWebSocket() {
         }
     };
 
-    ws.onclose = function(event) {
+    ws.onclose = function (event) {
         console.log('WebSocket closed, reconnecting...');
         updateConnectionStatus('disconnected');
         setTimeout(initWebSocket, 1000);
     };
 
-    ws.onerror = function(error) {
+    ws.onerror = function (error) {
         console.error('WebSocket error:', error);
         updateConnectionStatus('disconnected');
     };
 }
 
-submitBtn.addEventListener('click', async function() {
+submitBtn.addEventListener('click', async function () {
     const question = questionInput.value.trim();
     if (!question) return;
 
@@ -467,14 +467,14 @@ submitBtn.addEventListener('click', async function() {
 
     submitBtn.disabled = true;
     submitBtn.textContent = 'Processing...';
-    
+
     // Lock model selectors
     setSelectorsEnabled(false);
 
     try {
         // Get selected models
         const selectedModels = getSelectedModels();
-        
+
         // Send question via WebSocket with selected models
         ws.send(JSON.stringify({
             type: "question",
@@ -495,7 +495,7 @@ submitBtn.addEventListener('click', async function() {
     }
 });
 
-questionInput.addEventListener('keydown', function(e) {
+questionInput.addEventListener('keydown', function (e) {
     if (e.key === 'Enter') {
         if (e.shiftKey) {
             // allow newline
@@ -507,7 +507,7 @@ questionInput.addEventListener('keydown', function(e) {
 });
 
 // Clean up WebSocket on page unload to cancel ongoing requests
-window.addEventListener('beforeunload', function() {
+window.addEventListener('beforeunload', function () {
     if (ws && ws.readyState === WebSocket.OPEN) {
         ws.close();
     }
@@ -518,32 +518,65 @@ async function loadModels() {
     try {
         const response = await fetch('/models');
         const families = await response.json();
-        
+
         Object.entries(families).forEach(([familyID, familyData]) => {
             const selector = selectors[familyID];
             if (!selector) return;
-            
+
             // Clear loading option
             selector.innerHTML = '';
-            
+
             // Sort variants by name for consistent ordering
             const sortedVariants = familyData.variants.sort((a, b) => a.name.localeCompare(b.name));
-            
+
             // Add options with pricing
             sortedVariants.forEach(variant => {
                 const option = document.createElement('option');
                 option.value = variant.key;
-                // Format: model-name ($X/$Y)
+                // Store display names
                 const priceIn = variant.rate_in ? `$${variant.rate_in.toFixed(2)}` : '$0.00';
                 const priceOut = variant.rate_out ? `$${variant.rate_out.toFixed(2)}` : '$0.00';
-                option.textContent = `${variant.name} (${priceIn}/${priceOut})`;
+                const fullName = `${variant.name} (${priceIn}/${priceOut})`;
+                const shortName = variant.name;
+
+                option.textContent = fullName; // Default to full name for the list
+                option.dataset.shortName = shortName;
+                option.dataset.fullName = fullName;
+
                 selector.appendChild(option);
             });
-            
+
             // Set default to active model
             if (familyData.active) {
                 selector.value = familyData.active;
             }
+
+            // Helper to toggle option names
+            const setOptionsToShort = () => {
+                Array.from(selector.options).forEach(opt => {
+                    if (opt.dataset.shortName) opt.textContent = opt.dataset.shortName;
+                });
+            };
+
+            const setOptionsToFull = () => {
+                Array.from(selector.options).forEach(opt => {
+                    if (opt.dataset.fullName) opt.textContent = opt.dataset.fullName;
+                });
+            };
+
+            // Initial state: Short names (so box is tight and arrow is close)
+            setOptionsToShort();
+
+            // Dynamic text handling
+            selector.addEventListener('focus', setOptionsToFull);
+            selector.addEventListener('mousedown', setOptionsToFull);
+
+            selector.addEventListener('change', () => {
+                setOptionsToShort();
+                selector.blur(); // Remove focus to ensure it looks "closed"
+            });
+
+            selector.addEventListener('blur', setOptionsToShort);
         });
     } catch (error) {
         console.error('Failed to load models:', error);
@@ -653,11 +686,11 @@ function getSelectedModels() {
 
 // Toggle configuration panel
 if (toggleConfigLink && modelConfig) {
-    toggleConfigLink.addEventListener('click', function(e) {
+    toggleConfigLink.addEventListener('click', function (e) {
         e.preventDefault();
         modelConfig.classList.toggle('hidden');
-        toggleConfigLink.textContent = modelConfig.classList.contains('hidden') 
-            ? '⚙️ Configure' 
+        toggleConfigLink.textContent = modelConfig.classList.contains('hidden')
+            ? '⚙️ Configure'
             : '✕ Close';
     });
 }
@@ -680,7 +713,7 @@ function updateRoundsSliderUI(value) {
 }
 
 if (roundsSlider) {
-    roundsSlider.addEventListener('input', function() {
+    roundsSlider.addEventListener('input', function () {
         const value = parseInt(this.value, 10);
         updateRoundsSliderUI(value);
     });
@@ -695,47 +728,47 @@ function buildDiscussionsSection() {
     const discussionsSection = document.getElementById('discussionsSection');
     const discussionsContainer = document.getElementById('discussionsContainer');
     const filtersContainer = document.getElementById('discussionFilters');
-    
+
     if (!discussionsSection || !discussionsContainer || !filtersContainer) return;
-    
+
     // Helper to normalize agent name to model ID
     const normalizeToModelId = (agentName) => {
         // If it's already a model ID, return it
         if (modelState[agentName]) return agentName;
-        
+
         // Try to extract model ID from full name or partial match
         const lowerName = agentName.toLowerCase();
         for (const modelId of Object.keys(modelState)) {
             if (lowerName.includes(modelId)) return modelId;
         }
-        
+
         // Fallback: return as-is
         return agentName;
     };
-    
+
     // Collect all discussions grouped by agent pairs
     const pairConversations = {};
-    
+
     Object.keys(modelState).forEach(fromModel => {
         const state = modelState[fromModel];
         state.discussions.forEach((discussionData, roundIndex) => {
             if (!discussionData || Object.keys(discussionData).length === 0) return;
-            
+
             Object.entries(discussionData).forEach(([toAgent, message]) => {
                 // Normalize both agents to model IDs
                 const fromId = normalizeToModelId(fromModel);
                 const toId = normalizeToModelId(toAgent);
-                
+
                 // Skip if we couldn't normalize
                 if (!modelState[fromId] || !modelState[toId]) return;
-                
+
                 // Create a normalized pair key (alphabetically sorted)
                 const pair = [fromId, toId].sort().join('-');
-                
+
                 if (!pairConversations[pair]) {
                     pairConversations[pair] = [];
                 }
-                
+
                 // Add message to the conversation
                 pairConversations[pair].push({
                     round: roundIndex + 1,
@@ -746,23 +779,23 @@ function buildDiscussionsSection() {
             });
         });
     });
-    
+
     // Clear container
     discussionsContainer.innerHTML = '';
-    
+
     // If no discussions, hide section
     if (Object.keys(pairConversations).length === 0) {
         discussionsSection.classList.add('hidden');
         return;
     }
-    
+
     // Show section and build UI
     discussionsSection.classList.remove('hidden');
-    
+
     // Build filter chips
     filtersContainer.innerHTML = '';
     const allModels = Object.keys(modelState);
-    
+
     // Add "All" chip
     const allChip = document.createElement('button');
     allChip.className = 'discussion-filter-chip' + (activeDiscussionFilter === null ? ' active' : '');
@@ -772,7 +805,7 @@ function buildDiscussionsSection() {
         buildDiscussionsSection();
     });
     filtersContainer.appendChild(allChip);
-    
+
     // Add chip for each model
     allModels.forEach(modelId => {
         const chip = document.createElement('button');
@@ -785,58 +818,58 @@ function buildDiscussionsSection() {
         });
         filtersContainer.appendChild(chip);
     });
-    
+
     // Sort pairs alphabetically
     const sortedPairs = Object.keys(pairConversations).sort();
-    
+
     // Filter pairs based on active filter
-    const filteredPairs = activeDiscussionFilter 
+    const filteredPairs = activeDiscussionFilter
         ? sortedPairs.filter(pair => pair.includes(activeDiscussionFilter))
         : sortedPairs;
-    
+
     filteredPairs.forEach(pair => {
         const messages = pairConversations[pair];
         const [model1, model2] = pair.split('-');
-        
+
         // Sort messages chronologically (by round, then maintain order)
         messages.sort((a, b) => a.round - b.round);
-        
+
         const pairDiv = document.createElement('div');
         pairDiv.className = 'discussion-pair';
-        
+
         const headerDiv = document.createElement('div');
         headerDiv.className = 'discussion-pair-header';
-        
+
         const model1Name = cardElements[model1]?.querySelector('.model-name')?.textContent || model1;
         const model2Name = cardElements[model2]?.querySelector('.model-name')?.textContent || model2;
-        
+
         headerDiv.textContent = `${model1Name} ↔ ${model2Name}`;
         pairDiv.appendChild(headerDiv);
-        
+
         const conversationDiv = document.createElement('div');
         conversationDiv.className = 'discussion-conversation';
-        
+
         // Display all messages in chronological order
         messages.forEach(msg => {
             const msgDiv = document.createElement('div');
             msgDiv.className = 'discussion-message';
-            
+
             const fromName = cardElements[msg.from]?.querySelector('.model-name')?.textContent || msg.from;
             const toName = cardElements[msg.to]?.querySelector('.model-name')?.textContent || msg.to;
-            
+
             const metaSpan = document.createElement('span');
             metaSpan.className = 'discussion-meta';
             metaSpan.textContent = `Round ${msg.round} • ${fromName} to ${toName}`;
-            
+
             const textDiv = document.createElement('div');
             textDiv.className = 'discussion-text';
             textDiv.textContent = msg.message;
-            
+
             msgDiv.appendChild(metaSpan);
             msgDiv.appendChild(textDiv);
             conversationDiv.appendChild(msgDiv);
         });
-        
+
         pairDiv.appendChild(conversationDiv);
         discussionsContainer.appendChild(pairDiv);
     });
