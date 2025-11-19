@@ -176,7 +176,8 @@ function createEmptyModelState() {
         rationales: [],
         discussions: [],
         dots: [],
-        displayedRound: null
+        displayedRound: null,
+        currentRound: 0
     };
 }
 
@@ -218,7 +219,8 @@ function renderRoundDots(model) {
         dot.dataset.round = i + 1;
         dot.addEventListener('click', (e) => {
             e.stopPropagation();
-            if (!dot.classList.contains('filled')) return;
+            // Allow clicking if round is filled OR if it's the current/previous round
+            if (!dot.classList.contains('filled') && (i + 1) > (state.currentRound || 0)) return;
             showRoundResponse(model, i + 1);
             setActiveDot(model, i + 1);
         });
@@ -254,6 +256,7 @@ function setActiveDot(model, round) {
 function highlightCurrentRound(model, round) {
     const state = modelState[model];
     if (!state) return;
+    state.currentRound = Math.max(state.currentRound || 0, round);
     setActiveDot(model, round);
 }
 
@@ -550,16 +553,9 @@ async function loadModels() {
             sortedVariants.forEach(variant => {
                 const option = document.createElement('option');
                 option.value = variant.key;
-                // Store display names
                 const priceIn = variant.rate_in ? `$${variant.rate_in.toFixed(2)}` : '$0.00';
                 const priceOut = variant.rate_out ? `$${variant.rate_out.toFixed(2)}` : '$0.00';
-                const fullName = `${variant.name} (${priceIn}/${priceOut})`;
-                const shortName = variant.name;
-
-                option.textContent = fullName; // Default to full name for the list
-                option.dataset.shortName = shortName;
-                option.dataset.fullName = fullName;
-
+                option.textContent = `${variant.name} (${priceIn}/${priceOut})`;
                 selector.appendChild(option);
             });
 
@@ -567,33 +563,6 @@ async function loadModels() {
             if (familyData.active) {
                 selector.value = familyData.active;
             }
-
-            // Helper to toggle option names
-            const setOptionsToShort = () => {
-                Array.from(selector.options).forEach(opt => {
-                    if (opt.dataset.shortName) opt.textContent = opt.dataset.shortName;
-                });
-            };
-
-            const setOptionsToFull = () => {
-                Array.from(selector.options).forEach(opt => {
-                    if (opt.dataset.fullName) opt.textContent = opt.dataset.fullName;
-                });
-            };
-
-            // Initial state: Short names (so box is tight and arrow is close)
-            setOptionsToShort();
-
-            // Dynamic text handling
-            selector.addEventListener('focus', setOptionsToFull);
-            selector.addEventListener('mousedown', setOptionsToFull);
-
-            selector.addEventListener('change', () => {
-                setOptionsToShort();
-                selector.blur(); // Remove focus to ensure it looks "closed"
-            });
-
-            selector.addEventListener('blur', setOptionsToShort);
         });
     } catch (error) {
         console.error('Failed to load models:', error);
@@ -870,6 +839,11 @@ function buildDiscussionsSection() {
         messages.forEach(msg => {
             const msgDiv = document.createElement('div');
             msgDiv.className = 'discussion-message';
+
+            // Determine side based on model order in pair
+            // model1 is always left, model2 is always right
+            const isLeft = msg.from === model1;
+            msgDiv.classList.add(isLeft ? 'msg-left' : 'msg-right');
 
             const fromName = cardElements[msg.from]?.querySelector('.model-name')?.textContent || msg.from;
 
