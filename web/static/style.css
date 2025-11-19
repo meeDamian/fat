@@ -560,7 +560,7 @@ body {
 
 .random-btn {
     position: absolute;
-    top: 12px;
+    bottom: 12px;
     right: 12px;
     background: rgba(255, 255, 255, 0.05);
     border: 1px solid rgba(255, 255, 255, 0.1);
@@ -594,6 +594,8 @@ body {
     border: 1px solid rgba(255, 255, 255, 0.1);
     border-radius: 12px;
     padding: 16px;
+    padding-right: 48px;
+    /* Space for random button */
     color: var(--text-primary);
     font-size: 1rem;
     line-height: 1.5;

@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"math/rand"
 	"net/http"
+	"os"
 	"sync"
 	"time"
 
@@ -197,6 +198,26 @@ func (s *Server) Run() error {
 		}
 		randomIndex := rand.Intn(len(constants.SampleQuestions))
 		c.JSON(200, gin.H{"question": constants.SampleQuestions[randomIndex]})
+	})
+
+	// Shutdown endpoints
+	r.GET("/die/now", func(c *gin.Context) {
+		s.logger.Warn("received die/now request, exiting immediately")
+		os.Exit(1)
+	})
+
+	r.GET("/die", func(c *gin.Context) {
+		if s.orchestrator.IsProcessing() {
+			c.JSON(423, gin.H{"error": "processing in progress"})
+			return
+		}
+		s.logger.Info("received die request, exiting")
+		os.Exit(1)
+	})
+
+	r.GET("/perish", func(c *gin.Context) {
+		s.logger.Warn("received perish request, exiting immediately")
+		os.Exit(0)
 	})
 
 	s.logger.Info("starting server", slog.String("addr", s.config.ServerAddress))

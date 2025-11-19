@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/google/uuid"
@@ -26,10 +27,11 @@ type Broadcaster interface {
 
 // Orchestrator coordinates the multi-round question processing
 type Orchestrator struct {
-	logger      *slog.Logger
-	database    *db.DB
-	broadcaster Broadcaster
-	exporter    *htmlexport.Exporter
+	logger       *slog.Logger
+	database     *db.DB
+	broadcaster  Broadcaster
+	exporter     *htmlexport.Exporter
+	isProcessing atomic.Bool
 }
 
 // New creates a new Orchestrator
@@ -42,6 +44,11 @@ func New(logger *slog.Logger, database *db.DB, broadcaster Broadcaster, exporter
 	}
 }
 
+// IsProcessing returns true if a question is currently being processed
+func (o *Orchestrator) IsProcessing() bool {
+	return o.isProcessing.Load()
+}
+
 // ProcessQuestion orchestrates the entire question processing workflow
 func (o *Orchestrator) ProcessQuestion(
 	ctx context.Context,
@@ -50,6 +57,12 @@ func (o *Orchestrator) ProcessQuestion(
 	activeModels []*types.ModelInfo,
 	questionTS int64,
 ) {
+	if !o.isProcessing.CompareAndSwap(false, true) {
+		o.logger.Warn("attempted to start processing while already busy")
+		return
+	}
+	defer o.isProcessing.Store(false)
+
 	// Generate request ID
 	requestID := uuid.New().String()
 	logger := o.logger.With("request_id", requestID)
