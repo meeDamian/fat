@@ -489,6 +489,15 @@ body {
     box-shadow: 0 0 20px rgba(180, 83, 9, 0.2);
 }
 
+.model-card.error {
+    border-color: #ef4444;
+    box-shadow: 0 0 20px rgba(239, 68, 68, 0.2);
+}
+
+.error-text {
+    color: #ef4444;
+}
+
 /* Medals */
 /* Medals */
 .medal-icon {

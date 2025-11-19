@@ -274,6 +274,20 @@ function showRoundResponse(model, round) {
     if (response) {
         const answerDiv = document.createElement('div');
         answerDiv.className = 'answer-text';
+
+        // Check for error message
+        if (response.trim().startsWith('Error:')) {
+            answerDiv.classList.add('error-text');
+            if (cardElements[model]) {
+                cardElements[model].classList.add('error');
+            }
+        } else {
+            // Recovery: remove error class if new response is not an error
+            if (cardElements[model]) {
+                cardElements[model].classList.remove('error');
+            }
+        }
+
         answerDiv.textContent = response;
         output.appendChild(answerDiv);
     }
@@ -602,7 +616,7 @@ function buildHeroLayout(winnerId, runnerUpId) {
     galleryStage.innerHTML = '';
 
     heroStage.classList.add('active');
-    galleryStage.classList.add('interactive');
+    // galleryStage.classList.add('interactive');
 
     const orderedIds = [...modelOrder];
     // Winner first
@@ -616,8 +630,8 @@ function buildHeroLayout(winnerId, runnerUpId) {
         if (!card) return;
         card.classList.remove('active-card');
         card.classList.add('compact');
-        card.removeEventListener('click', handleGalleryCardClick);
-        card.addEventListener('click', handleGalleryCardClick);
+        // card.removeEventListener('click', handleGalleryCardClick);
+        // card.addEventListener('click', handleGalleryCardClick);
         galleryStage.appendChild(card);
     });
 
@@ -645,19 +659,19 @@ function moveCardToHero(cardId, isInitial = false) {
             if (!galleryCard) return;
             galleryCard.classList.remove('hero-card', 'active-card');
             galleryCard.classList.add('compact');
-            galleryCard.removeEventListener('click', handleGalleryCardClick);
-            galleryCard.addEventListener('click', handleGalleryCardClick);
+            // galleryCard.removeEventListener('click', handleGalleryCardClick);
+            // galleryCard.addEventListener('click', handleGalleryCardClick);
             galleryStage.appendChild(galleryCard);
         });
     }
 }
 
-function handleGalleryCardClick(event) {
-    const card = event.currentTarget;
-    const id = card.dataset.model;
-    if (!id || id === currentHeroId) return;
-    moveCardToHero(id);
-}
+// function handleGalleryCardClick(event) {
+//     const card = event.currentTarget;
+//     const id = card.dataset.model;
+//     if (!id || id === currentHeroId) return;
+//     moveCardToHero(id);
+// }
 
 // Get selected models
 function getSelectedModels() {
