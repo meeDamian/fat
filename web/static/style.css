@@ -487,7 +487,8 @@ body {
 .medal-icon {
     position: absolute;
     top: -12px;
-    right: 20px;
+    left: 50%;
+    transform: translateX(-50%);
     font-size: 24px;
     z-index: 10;
     filter: drop-shadow(0 4px 6px rgba(0, 0, 0, 0.3));
@@ -535,6 +536,8 @@ body {
     border: 1px solid rgba(255, 255, 255, 0.02);
     position: relative;
     z-index: 1;
+    white-space: pre-wrap;
+    /* Preserve newlines and wrap text */
 }
 
 .model-output p {
@@ -569,8 +572,15 @@ body {
 }
 
 .round-dot.filled {
+    background: rgba(255, 255, 255, 0.3);
+    border-color: rgba(255, 255, 255, 0.4);
+    cursor: pointer;
+}
+
+.round-dot.selected {
     background: var(--accent-primary);
-    box-shadow: 0 0 8px rgba(56, 189, 248, 0.4);
+    border-color: var(--accent-primary);
+    box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.2);
 }
 
 .round-dot.active {

@@ -218,7 +218,7 @@ function renderRoundDots(model) {
         dot.dataset.round = i + 1;
         dot.addEventListener('click', (e) => {
             e.stopPropagation();
-            if (!dot.classList.contains('completed')) return;
+            if (!dot.classList.contains('filled')) return;
             showRoundResponse(model, i + 1);
             setActiveDot(model, i + 1);
         });
@@ -235,7 +235,7 @@ function markRoundCompleted(model, round, responseText, rationaleText, discussio
     state.discussions[round - 1] = discussionData || {};
     const dot = state.dots[round - 1];
     if (dot) {
-        dot.classList.add('completed');
+        dot.classList.add('filled');
     }
     state.displayedRound = round;
 }
@@ -243,10 +243,10 @@ function markRoundCompleted(model, round, responseText, rationaleText, discussio
 function setActiveDot(model, round) {
     const state = modelState[model];
     if (!state) return;
-    state.dots.forEach(dot => dot.classList.remove('active'));
+    state.dots.forEach(dot => dot.classList.remove('selected'));
     const targetDot = state.dots[round - 1];
     if (targetDot) {
-        targetDot.classList.add('active');
+        targetDot.classList.add('selected');
     }
     state.displayedRound = round;
 }
@@ -396,8 +396,7 @@ function initWebSocket() {
             // Apply gold medals
             goldIDs.forEach(modelId => {
                 if (cardElements[modelId]) {
-                    cardElements[modelId].classList.add('winner');
-                    setCardStatus(modelId, '🏆');
+                    cardElements[modelId].classList.add('winner', 'border-gold');
                     // Add medal
                     const medal = document.createElement('div');
                     medal.className = 'medal-icon';
@@ -411,7 +410,6 @@ function initWebSocket() {
             silverIDs.forEach(modelId => {
                 if (cardElements[modelId]) {
                     cardElements[modelId].classList.add('runner-up', 'border-silver');
-                    setCardStatus(modelId, '🥈');
                     // Add medal
                     const medal = document.createElement('div');
                     medal.className = 'medal-icon';
@@ -424,7 +422,6 @@ function initWebSocket() {
             bronzeIDs.forEach(modelId => {
                 if (cardElements[modelId]) {
                     cardElements[modelId].classList.add('bronze', 'border-bronze');
-                    setCardStatus(modelId, '🥉');
                     // Add medal
                     const medal = document.createElement('div');
                     medal.className = 'medal-icon';
