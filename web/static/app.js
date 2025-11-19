@@ -398,6 +398,11 @@ function initWebSocket() {
                 if (cardElements[modelId]) {
                     cardElements[modelId].classList.add('winner');
                     setCardStatus(modelId, '🏆');
+                    // Add medal
+                    const medal = document.createElement('div');
+                    medal.className = 'medal-icon';
+                    medal.textContent = '🥇';
+                    cardElements[modelId].querySelector('.model-card-header').appendChild(medal);
                     if (!currentHeroId) currentHeroId = modelId;
                 }
             });
@@ -405,16 +410,26 @@ function initWebSocket() {
             // Apply silver medals
             silverIDs.forEach(modelId => {
                 if (cardElements[modelId]) {
-                    cardElements[modelId].classList.add('runner-up');
+                    cardElements[modelId].classList.add('runner-up', 'border-silver');
                     setCardStatus(modelId, '🥈');
+                    // Add medal
+                    const medal = document.createElement('div');
+                    medal.className = 'medal-icon';
+                    medal.textContent = '🥈';
+                    cardElements[modelId].querySelector('.model-card-header').appendChild(medal);
                 }
             });
 
             // Apply bronze medals
             bronzeIDs.forEach(modelId => {
                 if (cardElements[modelId]) {
-                    cardElements[modelId].classList.add('bronze');
+                    cardElements[modelId].classList.add('bronze', 'border-bronze');
                     setCardStatus(modelId, '🥉');
+                    // Add medal
+                    const medal = document.createElement('div');
+                    medal.className = 'medal-icon';
+                    medal.textContent = '🥉';
+                    cardElements[modelId].querySelector('.model-card-header').appendChild(medal);
                 }
             });
 
@@ -843,7 +858,7 @@ function buildDiscussionsSection() {
         pairDiv.className = 'discussion-pair';
 
         const headerDiv = document.createElement('div');
-        headerDiv.className = 'discussion-pair-header';
+        headerDiv.className = 'discussion-header';
 
         const model1Name = cardElements[model1]?.querySelector('.model-name')?.textContent || model1;
         const model2Name = cardElements[model2]?.querySelector('.model-name')?.textContent || model2;
@@ -852,7 +867,7 @@ function buildDiscussionsSection() {
         pairDiv.appendChild(headerDiv);
 
         const conversationDiv = document.createElement('div');
-        conversationDiv.className = 'discussion-conversation';
+        conversationDiv.className = 'discussion-messages';
 
         // Display all messages in chronological order
         messages.forEach(msg => {
@@ -860,18 +875,17 @@ function buildDiscussionsSection() {
             msgDiv.className = 'discussion-message';
 
             const fromName = cardElements[msg.from]?.querySelector('.model-name')?.textContent || msg.from;
-            const toName = cardElements[msg.to]?.querySelector('.model-name')?.textContent || msg.to;
 
-            const metaSpan = document.createElement('span');
-            metaSpan.className = 'discussion-meta';
-            metaSpan.textContent = `Round ${msg.round} • ${fromName} to ${toName}`;
+            const bubbleDiv = document.createElement('div');
+            bubbleDiv.className = 'message-bubble';
+            bubbleDiv.textContent = msg.message;
 
-            const textDiv = document.createElement('div');
-            textDiv.className = 'discussion-text';
-            textDiv.textContent = msg.message;
+            const metaSpan = document.createElement('div');
+            metaSpan.className = 'message-meta';
+            metaSpan.textContent = `Round ${msg.round} • ${fromName}`;
 
+            msgDiv.appendChild(bubbleDiv);
             msgDiv.appendChild(metaSpan);
-            msgDiv.appendChild(textDiv);
             conversationDiv.appendChild(msgDiv);
         });
 
