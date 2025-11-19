@@ -40,16 +40,18 @@ type Server struct {
 	clients      map[*websocket.Conn]bool
 	clientsMutex sync.Mutex
 	staticFS     fs.FS
+	startTime    time.Time
 }
 
 // New creates a new Server instance
 func New(logger *slog.Logger, cfg config.Config, database *db.DB, staticFS fs.FS) *Server {
 	s := &Server{
-		logger:   logger,
-		config:   cfg,
-		database: database,
-		clients:  make(map[*websocket.Conn]bool),
-		staticFS: staticFS,
+		logger:    logger,
+		config:    cfg,
+		database:  database,
+		clients:   make(map[*websocket.Conn]bool),
+		staticFS:  staticFS,
+		startTime: time.Now(),
 	}
 
 	// Create HTML exporter
@@ -136,7 +138,7 @@ func (s *Server) Run() error {
 	r.GET("/health", func(c *gin.Context) {
 		c.JSON(200, gin.H{
 			"status": "healthy",
-			"uptime": time.Since(time.Now()).String(),
+			"uptime": time.Since(s.startTime).String(),
 		})
 	})
 
