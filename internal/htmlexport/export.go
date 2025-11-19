@@ -39,7 +39,7 @@ type ExportData struct {
 	SilverIDs       []string // Models that won silver
 	BronzeIDs       []string // Models that won bronze
 	Replies         map[string]types.Reply
-	AllRoundReplies map[string]map[int]db.RoundReply // Model ID -> Round -> RoundReply
+	AllRoundReplies map[string]map[int]db.ModelRound // Model ID -> Round -> ModelRound
 	Models          []*types.ModelInfo
 	Metrics         map[string]any
 	RoundCounts     map[string]int    // Model ID -> number of rounds completed

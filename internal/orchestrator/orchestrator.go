@@ -131,18 +131,34 @@ func (o *Orchestrator) ProcessQuestion(
 				// Update conversation state
 				replies[result.modelID] = result.reply
 
-				// Save round reply to database
+				// Save round content to database (metrics will be added later)
 				discussionJSON, _ := json.Marshal(result.reply.Discussion)
-				roundReply := db.RoundReply{
+
+				// Find model name
+				modelName := result.modelID
+				for _, m := range activeModels {
+					if m.ID == result.modelID {
+						modelName = m.Name
+						break
+					}
+				}
+
+				modelRound := db.ModelRound{
 					RequestID:  requestID,
 					ModelID:    result.modelID,
+					ModelName:  modelName,
 					Round:      round + 1,
 					Answer:     result.reply.Answer,
 					Rationale:  result.reply.Rationale,
 					Discussion: string(discussionJSON),
+					// Performance metrics will be filled in later by saveMetrics
+					DurationMs: 0,
+					TokensIn:   0,
+					TokensOut:  0,
+					Cost:       0,
 				}
-				if err := o.database.SaveRoundReply(ctx, roundReply); err != nil {
-					logger.Warn("failed to save round reply to database", slog.Any("error", err))
+				if err := o.database.SaveModelRound(ctx, modelRound); err != nil {
+					logger.Warn("failed to save round content to database", slog.Any("error", err))
 				}
 
 				// Store discussion messages

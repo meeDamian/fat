@@ -39,6 +39,12 @@ func New(dbPath string, logger *slog.Logger) (*DB, error) {
 		return nil, fmt.Errorf("failed to initialize schema: %w", err)
 	}
 
+	// Run any pending migrations
+	if err := db.RunMigrations(context.Background()); err != nil {
+		conn.Close()
+		return nil, fmt.Errorf("failed to run migrations: %w", err)
+	}
+
 	return db, nil
 }
 
@@ -75,8 +81,12 @@ func (db *DB) initSchema() error {
 		tokens_out INTEGER NOT NULL,
 		cost REAL,
 		error TEXT,
+		answer TEXT,
+		rationale TEXT,
+		discussion TEXT,
 		created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-		FOREIGN KEY (request_id) REFERENCES requests(id)
+		FOREIGN KEY (request_id) REFERENCES requests(id),
+		UNIQUE(request_id, model_id, round)
 	);
 
 	CREATE TABLE IF NOT EXISTS rankings (
@@ -90,19 +100,6 @@ func (db *DB) initSchema() error {
 		cost REAL,
 		created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 		FOREIGN KEY (request_id) REFERENCES requests(id)
-	);
-
-	CREATE TABLE IF NOT EXISTS round_replies (
-		id INTEGER PRIMARY KEY AUTOINCREMENT,
-		request_id TEXT NOT NULL,
-		model_id TEXT NOT NULL,
-		round INTEGER NOT NULL,
-		answer TEXT NOT NULL,
-		rationale TEXT,
-		discussion TEXT, -- JSON map of target_agent -> messages
-		created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-		FOREIGN KEY (request_id) REFERENCES requests(id),
-		UNIQUE(request_id, model_id, round)
 	);
 
 	CREATE TABLE IF NOT EXISTS model_stats (
@@ -122,9 +119,8 @@ func (db *DB) initSchema() error {
 	CREATE INDEX IF NOT EXISTS idx_requests_created ON requests(created_at);
 	CREATE INDEX IF NOT EXISTS idx_model_rounds_request ON model_rounds(request_id);
 	CREATE INDEX IF NOT EXISTS idx_model_rounds_model ON model_rounds(model_id);
+	CREATE INDEX IF NOT EXISTS idx_model_rounds_model_round ON model_rounds(model_id, round);
 	CREATE INDEX IF NOT EXISTS idx_rankings_request ON rankings(request_id);
-	CREATE INDEX IF NOT EXISTS idx_round_replies_request ON round_replies(request_id);
-	CREATE INDEX IF NOT EXISTS idx_round_replies_model_round ON round_replies(model_id, round);
 	`
 
 	_, err := db.conn.Exec(schema)
@@ -158,6 +154,10 @@ type ModelRound struct {
 	TokensOut  int64
 	Cost       float64
 	Error      string
+	// Content fields (previously in RoundReply)
+	Answer     string
+	Rationale  string
+	Discussion string // JSON map of target_agent -> messages
 	CreatedAt  time.Time
 }
 
@@ -172,18 +172,6 @@ type Ranking struct {
 	TokensOut    int64
 	Cost         float64
 	CreatedAt    time.Time
-}
-
-// RoundReply represents a model's reply in a specific round
-type RoundReply struct {
-	ID         int64
-	RequestID  string
-	ModelID    string
-	Round      int
-	Answer     string
-	Rationale  string
-	Discussion string // JSON map of target_agent -> messages
-	CreatedAt  time.Time
 }
 
 // ModelStats represents aggregate statistics for a model
@@ -228,18 +216,29 @@ func (db *DB) SaveRequest(ctx context.Context, req Request) error {
 	return nil
 }
 
-// SaveModelRound saves a model's performance in a single round
+// SaveModelRound saves a model's performance and content in a single round
 func (db *DB) SaveModelRound(ctx context.Context, mr ModelRound) error {
 	query := `
 		INSERT INTO model_rounds (
 			request_id, model_id, model_name, round,
-			duration_ms, tokens_in, tokens_out, cost, error
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+			duration_ms, tokens_in, tokens_out, cost, error,
+			answer, rationale, discussion
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		ON CONFLICT(request_id, model_id, round) DO UPDATE SET
+			duration_ms = excluded.duration_ms,
+			tokens_in = excluded.tokens_in,
+			tokens_out = excluded.tokens_out,
+			cost = excluded.cost,
+			error = excluded.error,
+			answer = excluded.answer,
+			rationale = excluded.rationale,
+			discussion = excluded.discussion
 	`
 
 	_, err := db.conn.ExecContext(ctx, query,
 		mr.RequestID, mr.ModelID, mr.ModelName, mr.Round,
 		mr.DurationMs, mr.TokensIn, mr.TokensOut, mr.Cost, mr.Error,
+		mr.Answer, mr.Rationale, mr.Discussion,
 	)
 
 	if err != nil {
@@ -270,65 +269,45 @@ func (db *DB) SaveRanking(ctx context.Context, r Ranking) error {
 	return nil
 }
 
-// SaveRoundReply saves a model's reply for a specific round
-func (db *DB) SaveRoundReply(ctx context.Context, rr RoundReply) error {
+// GetRoundReplies retrieves all round data for a request
+func (db *DB) GetRoundReplies(ctx context.Context, requestID string) (map[string]map[int]ModelRound, error) {
 	query := `
-		INSERT INTO round_replies (
-			request_id, model_id, round, answer, rationale, discussion
-		) VALUES (?, ?, ?, ?, ?, ?)
-		ON CONFLICT(request_id, model_id, round) DO UPDATE SET
-			answer = excluded.answer,
-			rationale = excluded.rationale,
-			discussion = excluded.discussion
-	`
-
-	_, err := db.conn.ExecContext(ctx, query,
-		rr.RequestID, rr.ModelID, rr.Round, rr.Answer, rr.Rationale, rr.Discussion,
-	)
-
-	if err != nil {
-		return fmt.Errorf("failed to save round reply: %w", err)
-	}
-
-	return nil
-}
-
-// GetRoundReplies retrieves all round replies for a request
-func (db *DB) GetRoundReplies(ctx context.Context, requestID string) (map[string]map[int]RoundReply, error) {
-	query := `
-		SELECT id, request_id, model_id, round, answer, rationale, discussion, created_at
-		FROM round_replies
+		SELECT id, request_id, model_id, model_name, round,
+		       duration_ms, tokens_in, tokens_out, cost, error,
+		       answer, rationale, discussion, created_at
+		FROM model_rounds
 		WHERE request_id = ?
 		ORDER BY model_id, round
 	`
 
 	rows, err := db.conn.QueryContext(ctx, query, requestID)
 	if err != nil {
-		return nil, fmt.Errorf("failed to query round replies: %w", err)
+		return nil, fmt.Errorf("failed to query round data: %w", err)
 	}
 	defer rows.Close()
 
-	// Map structure: modelID -> round -> RoundReply
-	replies := make(map[string]map[int]RoundReply)
+	// Map structure: modelID -> round -> ModelRound
+	replies := make(map[string]map[int]ModelRound)
 
 	for rows.Next() {
-		var rr RoundReply
+		var mr ModelRound
 		err := rows.Scan(
-			&rr.ID, &rr.RequestID, &rr.ModelID, &rr.Round,
-			&rr.Answer, &rr.Rationale, &rr.Discussion, &rr.CreatedAt,
+			&mr.ID, &mr.RequestID, &mr.ModelID, &mr.ModelName, &mr.Round,
+			&mr.DurationMs, &mr.TokensIn, &mr.TokensOut, &mr.Cost, &mr.Error,
+			&mr.Answer, &mr.Rationale, &mr.Discussion, &mr.CreatedAt,
 		)
 		if err != nil {
-			return nil, fmt.Errorf("failed to scan round reply: %w", err)
+			return nil, fmt.Errorf("failed to scan round data: %w", err)
 		}
 
-		if replies[rr.ModelID] == nil {
-			replies[rr.ModelID] = make(map[int]RoundReply)
+		if replies[mr.ModelID] == nil {
+			replies[mr.ModelID] = make(map[int]ModelRound)
 		}
-		replies[rr.ModelID][rr.Round] = rr
+		replies[mr.ModelID][mr.Round] = mr
 	}
 
 	if err = rows.Err(); err != nil {
-		return nil, fmt.Errorf("error iterating round replies: %w", err)
+		return nil, fmt.Errorf("error iterating round data: %w", err)
 	}
 
 	return replies, nil
