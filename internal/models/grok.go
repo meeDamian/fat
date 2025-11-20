@@ -15,12 +15,14 @@ import (
 const (
 	Grok = "grok"
 
-	Grok4Fast             = "grok-4-fast"
-	Grok4FastNonReasoning = "grok-4-fast-non-reasoning"
-	GrokCodeFast1         = "grok-code-fast-1"
-	Grok4                 = "grok-4"
-	Grok3Mini             = "grok-3-mini"
-	Grok3                 = "grok-3"
+	Grok41Fast             = "grok-4-1-fast"
+	Grok41FastNonReasoning = "grok-4-1-fast-non-reasoning"
+	Grok4Fast              = "grok-4-fast"
+	Grok4FastNonReasoning  = "grok-4-fast-non-reasoning"
+	GrokCodeFast1          = "grok-code-fast-1"
+	Grok4                  = "grok-4"
+	Grok3Mini              = "grok-3-mini"
+	Grok3                  = "grok-3"
 )
 
 // GrokModel implements the Model interface for Grok

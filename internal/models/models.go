@@ -25,12 +25,14 @@ var ModelFamilies = map[string]types.ModelFamily{
 		Provider: "xAI",
 		BaseURL:  "https://api.x.ai/v1/chat/completions",
 		Variants: map[string]types.ModelVariant{
-			Grok4Fast:             {MaxTok: 2_000_000, Rate: types.Rate{In: 0.2, Out: 0.5}},
-			Grok4FastNonReasoning: {MaxTok: 2_000_000, Rate: types.Rate{In: 0.2, Out: 0.5}},
-			GrokCodeFast1:         {MaxTok: 256_000, Rate: types.Rate{In: 0.2, Out: 1.5}},
-			Grok4:                 {MaxTok: 256_000, Rate: types.Rate{In: 3.0, Out: 15.0}},
-			Grok3Mini:             {MaxTok: 131_072, Rate: types.Rate{In: 0.3, Out: 0.5}},
-			Grok3:                 {MaxTok: 131_072, Rate: types.Rate{In: 3.0, Out: 15.0}},
+			Grok41Fast:             {MaxTok: 2_000_000, Rate: types.Rate{In: 0.2, Out: 0.5}},
+			Grok41FastNonReasoning: {MaxTok: 2_000_000, Rate: types.Rate{In: 0.2, Out: 0.5}},
+			Grok4Fast:              {MaxTok: 2_000_000, Rate: types.Rate{In: 0.2, Out: 0.5}},
+			Grok4FastNonReasoning:  {MaxTok: 2_000_000, Rate: types.Rate{In: 0.2, Out: 0.5}},
+			GrokCodeFast1:          {MaxTok: 256_000, Rate: types.Rate{In: 0.2, Out: 1.5}},
+			Grok4:                  {MaxTok: 256_000, Rate: types.Rate{In: 3.0, Out: 15.0}},
+			Grok3Mini:              {MaxTok: 131_072, Rate: types.Rate{In: 0.3, Out: 0.5}},
+			Grok3:                  {MaxTok: 131_072, Rate: types.Rate{In: 3.0, Out: 15.0}},
 		},
 	},
 
@@ -116,7 +118,7 @@ var ModelFamilies = map[string]types.ModelFamily{
 // DefaultModels defines which model variant to use for each family by default
 // Change the variant name here to switch default models
 var DefaultModels = map[string]string{
-	Grok:     Grok4Fast,
+	Grok:     Grok41Fast,
 	GPT:      GPT5Mini,
 	Claude:   Claude45Haiku,
 	Gemini:   Gemini25Pro,
