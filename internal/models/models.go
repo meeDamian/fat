@@ -62,6 +62,7 @@ var ModelFamilies = map[string]types.ModelFamily{
 		Variants: map[string]types.ModelVariant{
 			// NOTE: Claude Sonnet 4.5 supports a 1M token context window when using the context-1m-2025-08-07 beta header. Long context pricing applies to requests exceeding 200K tokens.
 			// NOTE: Claude Sonnet 4 supports a 1M token context window when using the context-1m-2025-08-07 beta header. Long context pricing applies to requests exceeding 200K tokens.
+			Claude45Opus:   {MaxTok: 200_000, Rate: types.Rate{In: 5.0, Out: 25.0}},
 			Claude45Sonnet: {MaxTok: 200_000, Rate: types.Rate{In: 3.0, Out: 15.0}},
 			Claude45Haiku:  {MaxTok: 200_000, Rate: types.Rate{In: 1.0, Out: 5.0}},
 			Claude41Opus:   {MaxTok: 200_000, Rate: types.Rate{In: 15.0, Out: 75.0}},
@@ -120,7 +121,7 @@ var ModelFamilies = map[string]types.ModelFamily{
 var DefaultModels = map[string]string{
 	Grok:     Grok41Fast,
 	GPT:      GPT5Mini,
-	Claude:   Claude45Haiku,
+	Claude:   Claude45Opus,
 	Gemini:   Gemini25Pro,
 	DeepSeek: DeepSeekChat,
 	Mistral:  MistralMedium,

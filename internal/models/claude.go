@@ -13,6 +13,7 @@ import (
 const (
 	Claude = "claude"
 
+	Claude45Opus   = "claude-opus-4-5"
 	Claude45Sonnet = "claude-sonnet-4-5"
 	Claude45Haiku  = "claude-haiku-4-5"
 	Claude41Opus   = "claude-opus-4-1"
