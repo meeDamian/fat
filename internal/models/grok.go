@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"time"
 
 	"github.com/meedamian/fat/internal/shared"
 	"github.com/meedamian/fat/internal/types"
@@ -27,12 +26,16 @@ const (
 
 // GrokModel implements the Model interface for Grok
 type GrokModel struct {
-	info *types.ModelInfo
+	info   *types.ModelInfo
+	client *http.Client
 }
 
 // NewGrokModel creates a new Grok model instance
 func NewGrokModel(info *types.ModelInfo) *GrokModel {
-	return &GrokModel{info: info}
+	return &GrokModel{
+		info:   info,
+		client: shared.NewHTTPClient(info.RequestTimeout),
+	}
 }
 
 // grokResponse represents the API response structure
@@ -72,8 +75,7 @@ func (m *GrokModel) Prompt(ctx context.Context, question string, meta types.Meta
 	req.Header.Set("Authorization", "Bearer "+m.info.APIKey)
 	req.Header.Set("Content-Type", "application/json")
 
-	client := &http.Client{Timeout: 30 * time.Second}
-	res, err := client.Do(req)
+	res, err := m.client.Do(req)
 	if err != nil {
 		return types.ModelResult{}, fmt.Errorf("api request failed: %w", err)
 	}

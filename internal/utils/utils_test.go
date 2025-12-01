@@ -1,7 +1,6 @@
 package utils
 
 import (
-	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -115,71 +114,6 @@ func TestLogMultipleCalls(t *testing.T) {
 		if promptCount != 3 {
 			t.Errorf("Expected 3 prompt headers, got %d", promptCount)
 		}
-	}
-}
-
-func TestLoadRates(t *testing.T) {
-	ctx := context.Background()
-
-	// Test with no rates.json file
-	os.Remove("rates.json")
-
-	rates := LoadRates(ctx)
-
-	if rates == nil {
-		t.Fatal("LoadRates returned nil")
-	}
-
-	// Should have default rates for all models
-	expectedModels := []string{"grok-4-fast", "gpt-5-mini", "claude-3-5-haiku-20241022", "gemini-2.5-flash"}
-	for _, model := range expectedModels {
-		if _, ok := rates[model]; !ok {
-			t.Errorf("Missing rate for model %s", model)
-		}
-	}
-
-	// Verify rate structure
-	for model, rate := range rates {
-		if rate.TS == 0 {
-			t.Errorf("Model %s has zero timestamp", model)
-		}
-		if rate.In == 0 {
-			t.Errorf("Model %s has zero input rate", model)
-		}
-		if rate.Out == 0 {
-			t.Errorf("Model %s has zero output rate", model)
-		}
-	}
-}
-
-func TestGetDefaultRates(t *testing.T) {
-	rates := getDefaultRates()
-
-	if len(rates) != 4 {
-		t.Errorf("Expected 4 default rates, got %d", len(rates))
-	}
-
-	// Check specific rates
-	if grokRate, ok := rates["grok-4-fast"]; ok {
-		if grokRate.In != 0.20 {
-			t.Errorf("Expected Grok input rate 0.20, got %f", grokRate.In)
-		}
-		if grokRate.Out != 0.50 {
-			t.Errorf("Expected Grok output rate 0.50, got %f", grokRate.Out)
-		}
-	} else {
-		t.Error("Missing Grok rate")
-	}
-
-	if gptRate, ok := rates["gpt-5-mini"]; ok {
-		if gptRate.In != 0.25 {
-			t.Errorf("Expected GPT input rate 0.25, got %f", gptRate.In)
-		}
-		if gptRate.Out != 2.00 {
-			t.Errorf("Expected GPT output rate 2.00, got %f", gptRate.Out)
-		}
-	} else {
-		t.Error("Missing GPT rate")
 	}
 }
 

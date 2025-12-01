@@ -1,3 +1,7 @@
+// Package archiver handles moving old log files to archive directories.
+//
+// Deprecated: This package is deprecated in favor of database storage.
+// It will be removed in a future release.
 package archiver
 
 import (
