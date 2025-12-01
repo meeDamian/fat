@@ -882,4 +882,12 @@ body {
     .model-card {
         min-height: auto;
     }
+
+    .input-wrapper {
+        flex-direction: column;
+    }
+
+    .primary-btn {
+        width: 100%;
+    }
 }

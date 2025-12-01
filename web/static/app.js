@@ -328,7 +328,9 @@ function updateConnectionStatus(status) {
 
 function initWebSocket() {
     updateConnectionStatus('connecting');
-    ws = new WebSocket('ws://localhost:4444/ws');
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const host = window.location.host;
+    ws = new WebSocket(`${protocol}//${host}/ws`);
 
     ws.onopen = function (event) {
         console.log('WebSocket connected');
