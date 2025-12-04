@@ -537,9 +537,16 @@ select.model-chip,
     font-family: 'SF Mono', 'Monaco', 'Consolas', monospace;
 }
 
-/* Discussion section spacing fixes */
+/* Discussion styling - matching live page */
 .discussion-pair {
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
     margin-bottom: 32px;
+    background: rgba(15, 23, 42, 0.4);
+    border-radius: 16px;
+    padding: 20px;
+    border: 1px solid rgba(255, 255, 255, 0.05);
 }
 
 .discussion-pair:last-child {
@@ -547,18 +554,66 @@ select.model-chip,
 }
 
 .discussion-pair-header {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 8px;
-    font-size: 13px;
-    font-weight: 600;
-    color: rgba(148, 163, 184, 0.9);
-    margin-bottom: 16px;
+    font-size: 14px;
+    color: var(--text-muted);
     text-align: center;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
+    margin-bottom: 8px;
+    font-weight: 500;
+    letter-spacing: 0.02em;
+}
+
+.discussion-messages {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.discussion-message {
+    max-width: 80%;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.discussion-message.msg-left {
+    align-self: flex-start;
+}
+
+.discussion-message.msg-right {
+    align-self: flex-end;
+    align-items: flex-end;
+}
+
+.message-bubble {
+    padding: 12px 16px;
+    border-radius: 18px;
+    font-size: 15px;
     line-height: 1.5;
+    position: relative;
+    word-wrap: break-word;
+    white-space: pre-wrap;
+}
+
+.discussion-message.msg-left .message-bubble {
+    background: rgba(255, 255, 255, 0.1);
+    color: var(--text-main);
+    border-bottom-left-radius: 4px;
+}
+
+.discussion-message.msg-right .message-bubble {
+    background: var(--accent-primary);
+    color: #fff;
+    border-bottom-right-radius: 4px;
+}
+
+.message-meta {
+    font-size: 11px;
+    color: var(--text-muted);
+    padding: 0 4px;
+}
+
+.discussion-message.msg-right .message-meta {
+    text-align: right;
 }
 
 .discussion-filters {
@@ -789,27 +844,33 @@ select.model-chip,
                 headerDiv.textContent = pair.Header;
                 pairDiv.appendChild(headerDiv);
                 
-                const conversationDiv = document.createElement('div');
-                conversationDiv.className = 'discussion-conversation';
+                const messagesDiv = document.createElement('div');
+                messagesDiv.className = 'discussion-messages';
+                
+                // Extract model names from header for positioning
+                const models = pair.Header.split(' ↔ ').map(s => s.trim());
+                const leftModel = models[0] || '';
                 
                 pair.Messages.forEach(msg => {
                     const msgDiv = document.createElement('div');
-                    msgDiv.className = 'discussion-message';
+                    // Position based on which model is speaking
+                    const isLeft = msg.Meta.toLowerCase().includes(leftModel.toLowerCase());
+                    msgDiv.className = 'discussion-message ' + (isLeft ? 'msg-left' : 'msg-right');
                     
-                    const metaSpan = document.createElement('span');
-                    metaSpan.className = 'discussion-meta';
-                    metaSpan.textContent = msg.Meta;
-                    msgDiv.appendChild(metaSpan);
+                    const bubble = document.createElement('div');
+                    bubble.className = 'message-bubble';
+                    bubble.textContent = msg.Text;
+                    msgDiv.appendChild(bubble);
                     
-                    const textDiv = document.createElement('div');
-                    textDiv.className = 'discussion-text';
-                    textDiv.textContent = msg.Text;
-                    msgDiv.appendChild(textDiv);
+                    const meta = document.createElement('div');
+                    meta.className = 'message-meta';
+                    meta.textContent = msg.Meta;
+                    msgDiv.appendChild(meta);
                     
-                    conversationDiv.appendChild(msgDiv);
+                    messagesDiv.appendChild(msgDiv);
                 });
                 
-                pairDiv.appendChild(conversationDiv);
+                pairDiv.appendChild(messagesDiv);
                 discussionsContainer.appendChild(pairDiv);
             });
         }
