@@ -107,11 +107,12 @@ var ModelFamilies = map[string]types.ModelFamily{
 		BaseURL:  "https://api.mistral.ai/v1",
 		Variants: map[string]types.ModelVariant{
 			MagistralMedium: {MaxTok: 128_000, Rate: types.Rate{In: 2.0, Out: 5.0}},
+			MistralLarge:    {MaxTok: 256_000, Rate: types.Rate{In: 0.5, Out: 1.5}},
 			MistralMedium:   {MaxTok: 128_000, Rate: types.Rate{In: 0.4, Out: 2.0}},
+			MistralSmall:    {MaxTok: 32_000, Rate: types.Rate{In: 0.1, Out: 0.3}},
 			Codestral:       {MaxTok: 256_000, Rate: types.Rate{In: 0.3, Out: 0.9}},
 			Ministral3B:     {MaxTok: 128_000, Rate: types.Rate{In: 0.04, Out: 0.04}},
 			Ministral8B:     {MaxTok: 128_000, Rate: types.Rate{In: 0.1, Out: 0.1}},
-			MistralSmall:    {MaxTok: 32_000, Rate: types.Rate{In: 0.1, Out: 0.3}},
 		},
 	},
 }
@@ -124,7 +125,7 @@ var DefaultModels = map[string]string{
 	Claude:   Claude45Opus,
 	Gemini:   Gemini25Pro,
 	DeepSeek: DeepSeekChat,
-	Mistral:  MistralMedium,
+	Mistral:  MistralLarge,
 }
 
 // AllModels builds runtime ModelInfo instances from families and default models

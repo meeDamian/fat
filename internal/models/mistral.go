@@ -14,11 +14,12 @@ const (
 	Mistral = "mistral"
 
 	MagistralMedium = "magistral-medium-latest"
+	MistralLarge    = "mistral-large-latest"
 	MistralMedium   = "mistral-medium-latest"
+	MistralSmall    = "mistral-small-latest"
 	Codestral       = "codestral-latest"
 	Ministral3B     = "ministral-3b-latest"
 	Ministral8B     = "ministral-8b-latest"
-	MistralSmall    = "mistral-small-latest"
 )
 
 // MistralModel implements the Model interface for Mistral AI
