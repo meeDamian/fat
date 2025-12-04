@@ -58,8 +58,8 @@ func New(logger *slog.Logger, cfg config.Config, database *db.DB, staticFS fs.FS
 		startTime: time.Now(),
 	}
 
-	// Create HTML exporter
-	exporter := htmlexport.New(logger, "web/static")
+	// Create HTML exporter with embedded static files
+	exporter := htmlexport.New(logger, staticFS)
 
 	s.orchestrator = orchestrator.New(logger, database, s, exporter)
 	return s

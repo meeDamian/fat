@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"html/template"
+	"io/fs"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -19,14 +20,14 @@ import (
 )
 
 type Exporter struct {
-	logger    *slog.Logger
-	staticDir string
+	logger   *slog.Logger
+	staticFS fs.FS
 }
 
-func New(logger *slog.Logger, staticDir string) *Exporter {
+func New(logger *slog.Logger, staticFS fs.FS) *Exporter {
 	return &Exporter{
-		logger:    logger,
-		staticDir: staticDir,
+		logger:   logger,
+		staticFS: staticFS,
 	}
 }
 
@@ -117,7 +118,7 @@ func (e *Exporter) Export(ctx context.Context, data ExportData) error {
 	}
 
 	// Format: ./h/YYYY-MM-DD/HHMM_slug.html
-	ts := time.Unix(data.QuestionTS/1000, 0) // QuestionTS is in milliseconds
+	ts := time.Unix(data.QuestionTS, 0) // QuestionTS is in seconds
 	dateDir := ts.Format("2006-01-02")
 	timePrefix := ts.Format("1504")
 	filename := fmt.Sprintf("%s_%s.html", timePrefix, slug)
@@ -140,11 +141,10 @@ func (e *Exporter) Export(ctx context.Context, data ExportData) error {
 }
 
 func (e *Exporter) renderHTML(data ExportData) (string, error) {
-	// Read CSS from static directory
-	cssPath := filepath.Join(e.staticDir, "style.css")
-	cssBytes, err := os.ReadFile(cssPath)
+	// Read CSS from embedded static directory
+	cssBytes, err := fs.ReadFile(e.staticFS, "static/style.css")
 	if err != nil {
-		return "", fmt.Errorf("failed to read CSS file: %w", err)
+		return "", fmt.Errorf("failed to read embedded CSS file: %w", err)
 	}
 
 	// Format model names for display
@@ -284,6 +284,7 @@ const htmlTemplate = `<!DOCTYPE html>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <style>
 {{.CSS}}
 
@@ -323,10 +324,40 @@ const htmlTemplate = `<!DOCTYPE html>
     white-space: pre-wrap;
 }
 
+/* Question metadata (date and total cost) */
+.question-meta {
+    display: flex;
+    gap: 20px;
+    margin-top: 16px;
+    padding-top: 16px;
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+    font-size: 13px;
+    color: var(--text-muted);
+}
+
+.question-meta span {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+/* Hide dropdown arrows - not interactive in static export */
+.model-chip::after,
+select.model-chip,
+.model-chip svg {
+    display: none !important;
+}
+
+.model-chip {
+    cursor: default !important;
+    pointer-events: none;
+}
+
 .model-selector {
     display: none !important;
 }
 
+/* Better model chip styling without dropdown appearance */
 .model-chip {
     font-size: 11px;
     padding: 4px 8px;
@@ -337,6 +368,98 @@ const htmlTemplate = `<!DOCTYPE html>
     white-space: nowrap;
     text-transform: uppercase;
     letter-spacing: 0.05em;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    appearance: none;
+}
+
+/* Markdown table styling */
+.answer-text table,
+.rationale-text table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 16px 0;
+    font-size: 14px;
+    display: block;
+    overflow-x: auto;
+    white-space: nowrap;
+}
+
+.answer-text table th,
+.answer-text table td,
+.rationale-text table th,
+.rationale-text table td {
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    padding: 10px 14px;
+    text-align: left;
+    white-space: normal;
+    min-width: 100px;
+}
+
+.answer-text table th,
+.rationale-text table th {
+    background: rgba(124, 92, 255, 0.15);
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.answer-text table tr:nth-child(even),
+.rationale-text table tr:nth-child(even) {
+    background: rgba(255, 255, 255, 0.03);
+}
+
+.answer-text table tr:hover,
+.rationale-text table tr:hover {
+    background: rgba(255, 255, 255, 0.05);
+}
+
+/* Better header styling for markdown */
+.answer-text h1, .answer-text h2, .answer-text h3,
+.answer-text h4, .answer-text h5, .answer-text h6 {
+    margin-top: 20px;
+    margin-bottom: 10px;
+    font-weight: 600;
+    color: var(--text-primary);
+    line-height: 1.3;
+}
+
+.answer-text h1 { font-size: 1.5em; }
+.answer-text h2 { font-size: 1.3em; }
+.answer-text h3 { font-size: 1.15em; }
+.answer-text h4, .answer-text h5, .answer-text h6 { font-size: 1em; }
+
+/* Code blocks in markdown */
+.answer-text pre {
+    background: rgba(0, 0, 0, 0.3);
+    padding: 12px 16px;
+    border-radius: 8px;
+    overflow-x: auto;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    margin: 12px 0;
+}
+
+.answer-text code {
+    background: rgba(255, 255, 255, 0.1);
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.9em;
+}
+
+.answer-text pre code {
+    background: none;
+    padding: 0;
+}
+
+/* Lists in markdown */
+.answer-text ul, .answer-text ol {
+    margin: 12px 0;
+    padding-left: 24px;
+}
+
+.answer-text li {
+    margin: 6px 0;
 }
 
 .round-dot.filled {
@@ -505,6 +628,10 @@ const htmlTemplate = `<!DOCTYPE html>
                 <div class="static-question">
                     <h2>Question</h2>
                     <p id="questionText"></p>
+                    <div class="question-meta">
+                        <span>📅 <span id="questionDate"></span></span>
+                        <span>💰 Total: <span id="totalCost"></span></span>
+                    </div>
                 </div>
             </section>
 
@@ -543,7 +670,18 @@ const htmlTemplate = `<!DOCTYPE html>
         // Set question
         document.getElementById('questionText').textContent = DATA.question;
         
-        // Set timestamp
+        // Set question date
+        document.getElementById('questionDate').textContent = DATA.timestamp;
+        
+        // Calculate and display total cost
+        let totalCost = 0;
+        Object.values(DATA.modelCosts).forEach(costStr => {
+            const cost = parseFloat(costStr.replace('$', '')) || 0;
+            totalCost += cost;
+        });
+        document.getElementById('totalCost').textContent = '$' + totalCost.toFixed(4);
+        
+        // Set footer timestamp
         document.getElementById('timestamp').textContent = DATA.timestamp;
         
         // Render model cards
@@ -563,6 +701,17 @@ const htmlTemplate = `<!DOCTYPE html>
             card.className = classes;
             card.id = model.ID;
             card.dataset.model = model.ID;
+            
+            // Get provider name from model ID
+            const providerMap = {
+                'grok': 'xAI',
+                'gpt': 'OpenAI', 
+                'claude': 'Anthropic',
+                'gemini': 'Google',
+                'deepseek': 'DeepSeek',
+                'mistral': 'Mistral AI'
+            };
+            const provider = providerMap[model.ID] || model.ID;
             
             // Medal
             let medalHTML = '';
@@ -588,9 +737,10 @@ const htmlTemplate = `<!DOCTYPE html>
             // Answer/rationale
             let outputHTML = '';
             if (reply) {
-                outputHTML = '<p class="answer-text">' + escapeHTML(reply.Answer) + '</p>';
+                // Render markdown in answer and rationale
+                outputHTML = '<div class="answer-text">' + marked.parse(reply.Answer || '') + '</div>';
                 if (reply.Rationale) {
-                    outputHTML += '<p class="rationale-text">' + escapeHTML(reply.Rationale) + '</p>';
+                    outputHTML += '<div class="rationale-text">' + marked.parse(reply.Rationale) + '</div>';
                 }
             } else {
                 outputHTML = '<p class="placeholder">No response</p>';
@@ -739,16 +889,16 @@ const htmlTemplate = `<!DOCTYPE html>
                     const rationaleText = card.querySelector('.rationale-text');
                     
                     if (answerText) {
-                        answerText.textContent = roundReply.Answer;
+                        answerText.innerHTML = marked.parse(roundReply.Answer || '');
                     }
                     if (rationaleText) {
-                        rationaleText.textContent = roundReply.Rationale;
+                        rationaleText.innerHTML = marked.parse(roundReply.Rationale || '');
                     } else if (roundReply.Rationale) {
                         const modelOutput = card.querySelector('.model-output');
-                        const rationaleP = document.createElement('p');
-                        rationaleP.className = 'rationale-text';
-                        rationaleP.textContent = roundReply.Rationale;
-                        modelOutput.appendChild(rationaleP);
+                        const rationaleDiv = document.createElement('div');
+                        rationaleDiv.className = 'rationale-text';
+                        rationaleDiv.innerHTML = marked.parse(roundReply.Rationale);
+                        modelOutput.appendChild(rationaleDiv);
                     }
                     
                     // Highlight the selected dot
