@@ -42,12 +42,12 @@ func NewGeminiModel(info *types.ModelInfo) *GeminiModel {
 }
 
 // Prompt implements the Model interface
-func (m *GeminiModel) Prompt(ctx context.Context, question string, meta types.Meta, replies map[string]types.Reply, discussion map[string]map[string][]types.DiscussionMessage) (types.ModelResult, error) {
+func (m *GeminiModel) Prompt(ctx context.Context, question string, meta types.Meta, replies map[string]types.Reply, discussion map[string]map[string][]types.DiscussionMessage, privateNotes map[int]string) (types.ModelResult, error) {
 	if m.client == nil {
 		return types.ModelResult{}, fmt.Errorf("gemini client not initialized")
 	}
 
-	prompt := shared.FormatPrompt(m.info.ID, m.info.Name, question, meta, replies, discussion)
+	prompt := shared.FormatPrompt(m.info.ID, m.info.Name, question, meta, replies, discussion, privateNotes)
 
 	result, err := m.client.Models.GenerateContent(ctx, m.info.Name, genai.Text(prompt), nil)
 	if err != nil {

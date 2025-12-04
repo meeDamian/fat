@@ -175,6 +175,7 @@ function createEmptyModelState() {
         responses: [],
         rationales: [],
         discussions: [],
+        privateNotes: [],
         dots: [],
         displayedRound: null,
         currentRound: 0
@@ -188,6 +189,7 @@ function resetModelState(model, totalRounds) {
         state.responses = new Array(totalRounds).fill(null);
         state.rationales = new Array(totalRounds).fill(null);
         state.discussions = new Array(totalRounds).fill(null);
+        state.privateNotes = new Array(totalRounds).fill(null);
         state.displayedRound = null;
         renderRoundDots(model);
         setCardStatus(model, '');
@@ -229,12 +231,13 @@ function renderRoundDots(model) {
     }
 }
 
-function markRoundCompleted(model, round, responseText, rationaleText, discussionData) {
+function markRoundCompleted(model, round, responseText, rationaleText, discussionData, privateNotesText) {
     const state = modelState[model];
     if (!state) return;
     state.responses[round - 1] = responseText;
     state.rationales[round - 1] = rationaleText || '';
     state.discussions[round - 1] = discussionData || {};
+    state.privateNotes[round - 1] = privateNotesText || '';
     const dot = state.dots[round - 1];
     if (dot) {
         dot.classList.add('filled');
@@ -265,6 +268,7 @@ function showRoundResponse(model, round) {
     if (!state) return;
     const response = state.responses[round - 1];
     const rationale = state.rationales[round - 1];
+    const privateNotes = state.privateNotes[round - 1];
 
     const output = outputs[model];
     output.className = 'model-output';
@@ -298,6 +302,24 @@ function showRoundResponse(model, round) {
         rationaleDiv.className = 'rationale-text';
         rationaleDiv.textContent = rationale;
         output.appendChild(rationaleDiv);
+    }
+
+    // Show private notes if present (collapsible)
+    if (privateNotes) {
+        const notesContainer = document.createElement('details');
+        notesContainer.className = 'private-notes-container';
+
+        const notesSummary = document.createElement('summary');
+        notesSummary.className = 'private-notes-summary';
+        notesSummary.textContent = '🔒 Private Notes';
+        notesContainer.appendChild(notesSummary);
+
+        const notesDiv = document.createElement('div');
+        notesDiv.className = 'private-notes-text';
+        notesDiv.textContent = privateNotes;
+        notesContainer.appendChild(notesDiv);
+
+        output.appendChild(notesContainer);
     }
 }
 
@@ -365,7 +387,7 @@ function initWebSocket() {
             if (output) {
                 cardElements[data.model].classList.remove('loading', 'error', 'winner');
                 setCardStatus(data.model, '');
-                markRoundCompleted(data.model, data.round, data.response, data.rationale, data.discussion);
+                markRoundCompleted(data.model, data.round, data.response, data.rationale, data.discussion, data.private_notes);
                 showRoundResponse(data.model, data.round);
                 setActiveDot(data.model, data.round);
 

@@ -97,9 +97,10 @@ func (o *Orchestrator) ProcessQuestion(
 	// Initialize conversation state
 	replies := make(map[string]types.Reply)
 	discussion := make(map[string]map[string][]types.DiscussionMessage)
+	privateNotes := make(map[string]map[int]string) // modelID -> round -> notes
 
 	// Execute rounds
-	for round := 0; round < numRounds; round++ {
+	for round := range numRounds {
 		logger.Info("starting round", slog.Int("round", round+1))
 
 		o.broadcaster.Broadcast(map[string]any{
@@ -109,7 +110,7 @@ func (o *Orchestrator) ProcessQuestion(
 			"request_id": requestID,
 		})
 
-		results := o.parallelCall(ctx, requestID, question, replies, discussion, activeModels, round, numRounds, questionTS, reqMetrics)
+		results := o.parallelCall(ctx, requestID, question, replies, discussion, privateNotes, activeModels, round, numRounds, questionTS, reqMetrics)
 
 		// Wait for all models to complete this round
 		for range activeModels {
@@ -131,6 +132,14 @@ func (o *Orchestrator) ProcessQuestion(
 				// Update conversation state
 				replies[result.modelID] = result.reply
 
+				// Store private notes for this round
+				if result.reply.PrivateNotes != "" {
+					if privateNotes[result.modelID] == nil {
+						privateNotes[result.modelID] = make(map[int]string)
+					}
+					privateNotes[result.modelID][round+1] = result.reply.PrivateNotes
+				}
+
 				// Save round content to database (metrics will be added later)
 				discussionJSON, _ := json.Marshal(result.reply.Discussion)
 
@@ -144,13 +153,14 @@ func (o *Orchestrator) ProcessQuestion(
 				}
 
 				modelRound := db.ModelRound{
-					RequestID:  requestID,
-					ModelID:    result.modelID,
-					ModelName:  modelName,
-					Round:      round + 1,
-					Answer:     result.reply.Answer,
-					Rationale:  result.reply.Rationale,
-					Discussion: string(discussionJSON),
+					RequestID:    requestID,
+					ModelID:      result.modelID,
+					ModelName:    modelName,
+					Round:        round + 1,
+					Answer:       result.reply.Answer,
+					Rationale:    result.reply.Rationale,
+					Discussion:   string(discussionJSON),
+					PrivateNotes: result.reply.PrivateNotes,
 					// Performance metrics will be filled in later by saveMetrics
 					DurationMs: 0,
 					TokensIn:   0,
@@ -190,16 +200,17 @@ func (o *Orchestrator) ProcessQuestion(
 				}
 
 				o.broadcaster.Broadcast(map[string]any{
-					"type":       "response",
-					"model":      result.modelID,
-					"round":      round + 1,
-					"response":   result.reply.Answer,
-					"rationale":  result.reply.Rationale,
-					"discussion": result.reply.Discussion,
-					"tokens_in":  result.tokensIn,
-					"tokens_out": result.tokensOut,
-					"cost":       result.cost,
-					"request_id": requestID,
+					"type":          "response",
+					"model":         result.modelID,
+					"round":         round + 1,
+					"response":      result.reply.Answer,
+					"rationale":     result.reply.Rationale,
+					"discussion":    result.reply.Discussion,
+					"private_notes": result.reply.PrivateNotes,
+					"tokens_in":     result.tokensIn,
+					"tokens_out":    result.tokensOut,
+					"cost":          result.cost,
+					"request_id":    requestID,
 				})
 			}
 		}
@@ -381,6 +392,7 @@ func (o *Orchestrator) parallelCall(
 	question string,
 	replies map[string]types.Reply,
 	discussion map[string]map[string][]types.DiscussionMessage,
+	privateNotes map[string]map[int]string,
 	activeModels []*types.ModelInfo,
 	round int,
 	numRounds int,
@@ -423,6 +435,9 @@ func (o *Orchestrator) parallelCall(
 
 			model := models.NewModel(mi)
 
+			// Get this model's private notes from previous rounds
+			modelNotes := privateNotes[mi.ID] // may be nil - that's OK
+
 			// Retry configuration
 			retryCfg := retry.DefaultConfig()
 			var result types.ModelResult
@@ -430,7 +445,7 @@ func (o *Orchestrator) parallelCall(
 
 			// Execute with retry
 			retryErr := retry.Do(callCtx, retryCfg, func() error {
-				result, err = model.Prompt(callCtx, question, meta, replies, discussion)
+				result, err = model.Prompt(callCtx, question, meta, replies, discussion, modelNotes)
 				if err != nil && retry.IsRetryable(err) {
 					mi.Logger.Warn("retrying after error", slog.Any("error", err))
 					return err

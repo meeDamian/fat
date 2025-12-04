@@ -3,6 +3,7 @@ package shared
 import (
 	"fmt"
 	"math/rand"
+	"slices"
 	"sort"
 	"strings"
 
@@ -14,7 +15,7 @@ func CreateAnonymizationMap(allAgents []string) map[string]string {
 	// Sort for consistency
 	sorted := make([]string, len(allAgents))
 	copy(sorted, allAgents)
-	sort.Strings(sorted)
+	slices.Sort(sorted)
 
 	// Generate random letter assignments
 	letters := []string{"A", "B", "C", "D", "E", "F", "G", "H"}
@@ -35,7 +36,7 @@ func FormatRankingPrompt(agentName, question string, otherAgents []string, final
 
 	// Build list of all agents
 	allAgents := append([]string{agentName}, otherAgents...)
-	sort.Strings(allAgents) // Sort for consistency
+	slices.Sort(allAgents) // Sort for consistency
 
 	b.WriteString("╔══════════════════════════════════════════════════════════════╗\n")
 	b.WriteString("║               🚨 RANKING MODE - NOT WRITING MODE 🚨          ║\n")

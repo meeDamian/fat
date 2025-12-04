@@ -144,5 +144,42 @@ func (db *DB) RunMigrations(ctx context.Context) error {
 		db.logger.Info("migration completed", "new_version", 1)
 	}
 
+	if version < 2 {
+		db.logger.Info("running migration: add private_notes column")
+		if err := db.MigrateAddPrivateNotes(ctx); err != nil {
+			return err
+		}
+		if err := db.setSchemaVersion(ctx, 2); err != nil {
+			return err
+		}
+		db.logger.Info("migration completed", "new_version", 2)
+	}
+
+	return nil
+}
+
+// MigrateAddPrivateNotes adds the private_notes column to model_rounds
+func (db *DB) MigrateAddPrivateNotes(ctx context.Context) error {
+	db.logger.Info("starting database migration: add private_notes column")
+
+	// SQLite doesn't error on ADD COLUMN IF EXISTS, so we check first
+	var count int
+	err := db.conn.QueryRowContext(ctx,
+		"SELECT COUNT(*) FROM pragma_table_info('model_rounds') WHERE name='private_notes'").Scan(&count)
+	if err != nil {
+		return fmt.Errorf("failed to check column existence: %w", err)
+	}
+
+	if count > 0 {
+		db.logger.Info("private_notes column already exists, skipping")
+		return nil
+	}
+
+	_, err = db.conn.ExecContext(ctx, "ALTER TABLE model_rounds ADD COLUMN private_notes TEXT")
+	if err != nil {
+		return fmt.Errorf("failed to add private_notes column: %w", err)
+	}
+
+	db.logger.Info("added private_notes column to model_rounds")
 	return nil
 }

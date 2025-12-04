@@ -155,10 +155,11 @@ type ModelRound struct {
 	Cost       float64
 	Error      string
 	// Content fields (previously in RoundReply)
-	Answer     string
-	Rationale  string
-	Discussion string // JSON map of target_agent -> messages
-	CreatedAt  time.Time
+	Answer       string
+	Rationale    string
+	Discussion   string // JSON map of target_agent -> messages
+	PrivateNotes string // Private notes (never shared with other agents)
+	CreatedAt    time.Time
 }
 
 // Ranking represents a model's ranking of all agents
@@ -222,8 +223,8 @@ func (db *DB) SaveModelRound(ctx context.Context, mr ModelRound) error {
 		INSERT INTO model_rounds (
 			request_id, model_id, model_name, round,
 			duration_ms, tokens_in, tokens_out, cost, error,
-			answer, rationale, discussion
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+			answer, rationale, discussion, private_notes
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT(request_id, model_id, round) DO UPDATE SET
 			duration_ms = excluded.duration_ms,
 			tokens_in = excluded.tokens_in,
@@ -232,13 +233,14 @@ func (db *DB) SaveModelRound(ctx context.Context, mr ModelRound) error {
 			error = excluded.error,
 			answer = excluded.answer,
 			rationale = excluded.rationale,
-			discussion = excluded.discussion
+			discussion = excluded.discussion,
+			private_notes = excluded.private_notes
 	`
 
 	_, err := db.conn.ExecContext(ctx, query,
 		mr.RequestID, mr.ModelID, mr.ModelName, mr.Round,
 		mr.DurationMs, mr.TokensIn, mr.TokensOut, mr.Cost, mr.Error,
-		mr.Answer, mr.Rationale, mr.Discussion,
+		mr.Answer, mr.Rationale, mr.Discussion, mr.PrivateNotes,
 	)
 
 	if err != nil {
@@ -274,7 +276,7 @@ func (db *DB) GetRoundReplies(ctx context.Context, requestID string) (map[string
 	query := `
 		SELECT id, request_id, model_id, model_name, round,
 		       duration_ms, tokens_in, tokens_out, cost, error,
-		       answer, rationale, discussion, created_at
+		       answer, rationale, discussion, COALESCE(private_notes, ''), created_at
 		FROM model_rounds
 		WHERE request_id = ?
 		ORDER BY model_id, round
@@ -294,7 +296,7 @@ func (db *DB) GetRoundReplies(ctx context.Context, requestID string) (map[string
 		err := rows.Scan(
 			&mr.ID, &mr.RequestID, &mr.ModelID, &mr.ModelName, &mr.Round,
 			&mr.DurationMs, &mr.TokensIn, &mr.TokensOut, &mr.Cost, &mr.Error,
-			&mr.Answer, &mr.Rationale, &mr.Discussion, &mr.CreatedAt,
+			&mr.Answer, &mr.Rationale, &mr.Discussion, &mr.PrivateNotes, &mr.CreatedAt,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan round data: %w", err)

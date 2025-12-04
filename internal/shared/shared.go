@@ -3,7 +3,7 @@ package shared
 import (
 	"encoding/json"
 	"fmt"
-	"sort"
+	"slices"
 	"strings"
 
 	"github.com/meedamian/fat/internal/types"
@@ -12,7 +12,8 @@ import (
 // FormatPrompt creates a standardized prompt for all models
 // modelID is the short ID (e.g., "grok", "claude") used for discussion lookup
 // modelName is the full name (e.g., "grok-4-fast") used for display
-func FormatPrompt(modelID, modelName, question string, meta types.Meta, replies map[string]types.Reply, discussion map[string]map[string][]types.DiscussionMessage) string {
+// privateNotes contains this model's own notes from previous rounds (keyed by round number)
+func FormatPrompt(modelID, modelName, question string, meta types.Meta, replies map[string]types.Reply, discussion map[string]map[string][]types.DiscussionMessage, privateNotes map[int]string) string {
 	var b strings.Builder
 
 	otherAgentsStr := "none"
@@ -32,7 +33,9 @@ func FormatPrompt(modelID, modelName, question string, meta types.Meta, replies 
 		b.WriteString("# REPLIES from previous round:\n\n")
 		if len(replies) == 0 {
 			b.WriteString("(No replies available)\n\n")
-		} else {
+		}
+
+		if len(replies) > 0 {
 			// Show own previous answer first (replies map uses modelID as key)
 			if ownReply, hasOwn := replies[modelID]; hasOwn {
 				answer := strings.TrimSpace(ownReply.Answer)
@@ -56,29 +59,27 @@ func FormatPrompt(modelID, modelName, question string, meta types.Meta, replies 
 					agentIDs = append(agentIDs, agentID)
 				}
 			}
-			sort.Strings(agentIDs)
+			slices.Sort(agentIDs)
 
 			// Map short IDs to display names
 			idToDisplayName := map[string]string{
-				"grok":   "Grok",
-				"gpt":    "GPT",
-				"claude": "Claude",
-				"gemini": "Gemini",
+				"grok":     "Grok",
+				"gpt":      "GPT",
+				"claude":   "Claude",
+				"gemini":   "Gemini",
+				"deepseek": "DeepSeek",
+				"mistral":  "Mistral",
 			}
 
 			// Build a map of agentID -> full model name from OtherAgents
 			agentIDToFullName := make(map[string]string)
 			for _, fullName := range meta.OtherAgents {
-				// Match by checking if the full name contains the agent ID pattern
 				lowerFullName := strings.ToLower(fullName)
-				if strings.Contains(lowerFullName, "grok") {
-					agentIDToFullName["grok"] = fullName
-				} else if strings.Contains(lowerFullName, "gpt") {
-					agentIDToFullName["gpt"] = fullName
-				} else if strings.Contains(lowerFullName, "claude") {
-					agentIDToFullName["claude"] = fullName
-				} else if strings.Contains(lowerFullName, "gemini") {
-					agentIDToFullName["gemini"] = fullName
+				for id := range idToDisplayName {
+					if strings.Contains(lowerFullName, id) {
+						agentIDToFullName[id] = fullName
+						break
+					}
 				}
 			}
 
@@ -131,7 +132,7 @@ func FormatPrompt(modelID, modelName, question string, meta types.Meta, replies 
 						agents = append(agents, agent)
 					}
 				}
-				sort.Strings(agents)
+				slices.Sort(agents)
 
 				for _, agent := range agents {
 					messages := threads[agent]
@@ -176,6 +177,18 @@ func FormatPrompt(modelID, modelName, question string, meta types.Meta, replies 
 		}
 	}
 
+	// Show this model's private notes from previous rounds (if any)
+	// These are ONLY visible to this model - never shared with other agents
+	if len(privateNotes) > 0 {
+		b.WriteString("# YOUR PRIVATE NOTES from previous rounds\n\n")
+		b.WriteString("(Only you can see these - no other agent or human has access)\n\n")
+		for round := 1; round < meta.Round; round++ {
+			if note, exists := privateNotes[round]; exists && strings.TrimSpace(note) != "" {
+				b.WriteString(fmt.Sprintf("## ROUND %d\n\n%s\n\n", round, strings.TrimSpace(note)))
+			}
+		}
+	}
+
 	// Round-specific instructions
 	b.WriteString("--- YOUR TASK ---\n\n")
 	if meta.Round == 1 {
@@ -184,7 +197,9 @@ func FormatPrompt(modelID, modelName, question string, meta types.Meta, replies 
 		b.WriteString("- Answering the question directly and completely\n")
 		b.WriteString("- Using your unique perspective and expertise\n")
 		b.WriteString("- Being concise but thorough\n\n")
-	} else {
+	}
+
+	if meta.Round > 1 {
 		b.WriteString(fmt.Sprintf("This is round %d of %d - refine your answer based on:\n", meta.Round, meta.TotalRounds))
 		b.WriteString("1. Gaps or weaknesses in other agents' answers\n")
 		b.WriteString("2. Discussion points directed at you\n")
@@ -207,22 +222,25 @@ func FormatPrompt(modelID, modelName, question string, meta types.Meta, replies 
 	b.WriteString("# ANSWER\n\n")
 	if meta.Round == 1 {
 		b.WriteString("Your answer to the question\n")
-		b.WriteString("IMPORTANT: Include ONLY the raw answer here - no scaffolding, disclaimers, or meta-commentary.\n")
-		b.WriteString("Save explanations for the RATIONALE section.\n\n")
-	} else {
-		b.WriteString("Your refined answer (incorporate feedback, address gaps)\n")
-		b.WriteString("IMPORTANT: Include ONLY the raw answer here - no scaffolding, disclaimers, or meta-commentary.\n")
-		b.WriteString("Save explanations for the RATIONALE section.\n\n")
 	}
+
+	if meta.Round > 1 {
+		b.WriteString("Your refined answer (incorporate feedback, address gaps)\n")
+	}
+
+	b.WriteString("IMPORTANT: Include ONLY the raw answer here - no scaffolding, disclaimers, or meta-commentary.\n")
+	b.WriteString("Save explanations for the RATIONALE section.\n\n")
 
 	b.WriteString("# RATIONALE\n\n")
 	if meta.Round == 1 {
 		b.WriteString("(Optional) Brief explanation of your approach or reasoning\n")
-		b.WriteString("⚠️  Use EXACTLY '# RATIONALE' (single #), NOT '### Rationale' or any other format\n\n")
-	} else {
-		b.WriteString("(Optional) Brief explanation of changes made (e.g., \"Added economic data from GPT's suggestion\")\n")
-		b.WriteString("⚠️  Use EXACTLY '# RATIONALE' (single #), NOT '### Rationale' or any other format\n\n")
 	}
+
+	if meta.Round > 1 {
+		b.WriteString("(Optional) Brief explanation of changes made (e.g., \"Added economic data from GPT's suggestion\")\n")
+	}
+
+	b.WriteString("⚠️  Use EXACTLY '# RATIONALE' (single #), NOT '### Rationale' or any other format\n\n")
 
 	if meta.Round > 1 {
 		b.WriteString("# DISCUSSION\n\n")
@@ -237,6 +255,14 @@ func FormatPrompt(modelID, modelName, question string, meta types.Meta, replies 
 		b.WriteString("GOOD: \"Your economic analysis omits Q4 2023 inflation data. Adding this would strengthen the GDP impact argument.\"\n\n")
 		b.WriteString("BAD: \"Good point!\" or \"I disagree with your approach.\"\n")
 	}
+
+	b.WriteString("\n# PRIVATE NOTES\n\n")
+	b.WriteString("(Optional) Your private scratchpad for the next round.\n")
+	b.WriteString("These notes are COMPLETELY PRIVATE:\n")
+	b.WriteString("- No other agent will ever see them\n")
+	b.WriteString("- No human will ever see them\n")
+	b.WriteString("- They will be passed back to you in future rounds\n")
+	b.WriteString("Use this for tracking your reasoning, things to investigate, or ideas to develop.\n")
 
 	return b.String()
 }
@@ -307,7 +333,7 @@ func ParseResponse(content string) types.Reply {
 	var sectionLines []string
 	foundAnySection := false
 
-	for i := 0; i < len(lines); i++ {
+	for i := range lines {
 		line := lines[i]
 		trimmed := strings.TrimSpace(line)
 
@@ -331,6 +357,9 @@ func ParseResponse(content string) types.Reply {
 				foundAnySection = true
 			case "DISCUSSION":
 				currentSection = "discussion"
+				foundAnySection = true
+			case "PRIVATE NOTES":
+				currentSection = "private_notes"
 				foundAnySection = true
 			default:
 				currentSection = ""
@@ -416,5 +445,7 @@ func saveSection(reply *types.Reply, section, content, agent string) {
 		if agent != "" {
 			reply.Discussion[agent] = content
 		}
+	case "private_notes":
+		reply.PrivateNotes = content
 	}
 }

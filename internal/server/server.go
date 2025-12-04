@@ -132,6 +132,7 @@ func (s *Server) Run() error {
 		}
 		c.Data(200, "text/html; charset=utf-8", data)
 	})
+
 	r.GET("/ws", s.handleWebSocket)
 
 	// Health check endpoint

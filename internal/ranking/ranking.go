@@ -96,7 +96,7 @@ func RankModels(
 				OtherAgents: otherAgents,
 			}
 
-			result, err := model.Prompt(callCtx, prompt, meta, make(map[string]types.Reply), make(map[string]map[string][]types.DiscussionMessage))
+			result, err := model.Prompt(callCtx, prompt, meta, make(map[string]types.Reply), make(map[string]map[string][]types.DiscussionMessage), nil)
 
 			duration := time.Since(startTime)
 

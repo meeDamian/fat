@@ -52,8 +52,8 @@ type grokResponse struct {
 }
 
 // Prompt implements the Model interface
-func (m *GrokModel) Prompt(ctx context.Context, question string, meta types.Meta, replies map[string]types.Reply, discussion map[string]map[string][]types.DiscussionMessage) (types.ModelResult, error) {
-	prompt := shared.FormatPrompt(m.info.ID, m.info.Name, question, meta, replies, discussion)
+func (m *GrokModel) Prompt(ctx context.Context, question string, meta types.Meta, replies map[string]types.Reply, discussion map[string]map[string][]types.DiscussionMessage, privateNotes map[int]string) (types.ModelResult, error) {
+	prompt := shared.FormatPrompt(m.info.ID, m.info.Name, question, meta, replies, discussion, privateNotes)
 
 	// Build messages array
 	messages := []map[string]string{{"role": "user", "content": prompt}}
@@ -81,13 +81,13 @@ func (m *GrokModel) Prompt(ctx context.Context, question string, meta types.Meta
 	}
 	defer res.Body.Close()
 
+	if res.StatusCode != http.StatusOK {
+		return types.ModelResult{}, fmt.Errorf("api returned status %d", res.StatusCode)
+	}
+
 	var result grokResponse
 	if err := json.NewDecoder(res.Body).Decode(&result); err != nil {
 		return types.ModelResult{}, fmt.Errorf("failed to decode response: %w", err)
-	}
-
-	if res.StatusCode != http.StatusOK {
-		return types.ModelResult{}, fmt.Errorf("api returned status %d", res.StatusCode)
 	}
 
 	if len(result.Choices) == 0 {

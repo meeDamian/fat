@@ -37,8 +37,8 @@ func NewDeepSeekModel(info *types.ModelInfo) *DeepSeekModel {
 }
 
 // Prompt implements the Model interface
-func (m *DeepSeekModel) Prompt(ctx context.Context, question string, meta types.Meta, replies map[string]types.Reply, discussion map[string]map[string][]types.DiscussionMessage) (types.ModelResult, error) {
-	prompt := shared.FormatPrompt(m.info.ID, m.info.Name, question, meta, replies, discussion)
+func (m *DeepSeekModel) Prompt(ctx context.Context, question string, meta types.Meta, replies map[string]types.Reply, discussion map[string]map[string][]types.DiscussionMessage, privateNotes map[int]string) (types.ModelResult, error) {
+	prompt := shared.FormatPrompt(m.info.ID, m.info.Name, question, meta, replies, discussion, privateNotes)
 
 	params := openai.ChatCompletionNewParams{
 		Model: openai.ChatModel(m.info.Name),

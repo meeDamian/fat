@@ -49,10 +49,11 @@ type DiscussionMessage struct {
 
 // Reply represents a model's response
 type Reply struct {
-	Answer     string
-	Rationale  string
-	Discussion map[string]string // Agent -> Message to be added to discussion
-	RawContent string            // For logging/debugging
+	Answer       string
+	Rationale    string
+	Discussion   map[string]string // Agent -> Message to be added to discussion
+	PrivateNotes string            // Private notes (never shared with other agents)
+	RawContent   string            // For logging/debugging
 }
 
 // ModelResult holds the result of a model prompt
@@ -72,5 +73,5 @@ type Meta struct {
 
 // Model interface for all AI providers
 type Model interface {
-	Prompt(ctx context.Context, question string, meta Meta, replies map[string]Reply, discussion map[string]map[string][]DiscussionMessage) (ModelResult, error)
+	Prompt(ctx context.Context, question string, meta Meta, replies map[string]Reply, discussion map[string]map[string][]DiscussionMessage, privateNotes map[int]string) (ModelResult, error)
 }

@@ -27,7 +27,7 @@ func TestFormatPrompt(t *testing.T) {
 		},
 	}
 
-	prompt := FormatPrompt("grok", "Grok", "What is AI?", meta, replies, discussion)
+	prompt := FormatPrompt("grok", "Grok", "What is AI?", meta, replies, discussion, nil)
 
 	// Verify key sections are present
 	if !strings.Contains(prompt, "You are Grok in a 3-agent collaboration") {
@@ -53,7 +53,7 @@ func TestFormatPrompt(t *testing.T) {
 	if !strings.Contains(prompt, "--- RESPONSE FORMAT ---") {
 		t.Error("Missing response format section")
 	}
-	
+
 	if !strings.Contains(prompt, "--- YOUR TASK ---") {
 		t.Error("Missing task section")
 	}
@@ -107,7 +107,7 @@ func TestFormatPromptRound1(t *testing.T) {
 		OtherAgents: []string{"GPT", "Claude"},
 	}
 
-	prompt := FormatPrompt("grok", "Grok", "Test question", meta, map[string]types.Reply{}, map[string]map[string][]types.DiscussionMessage{})
+	prompt := FormatPrompt("grok", "Grok", "Test question", meta, map[string]types.Reply{}, map[string]map[string][]types.DiscussionMessage{}, nil)
 
 	// Round 1 should NOT have replies or discussion sections
 	if strings.Contains(prompt, "# REPLIES from previous round:") {
@@ -121,15 +121,15 @@ func TestFormatPromptRound1(t *testing.T) {
 	if strings.Contains(prompt, "(No discussion yet)") {
 		t.Error("Round 1 should not have discussion placeholder")
 	}
-	
+
 	if !strings.Contains(prompt, "This is round 1 - provide your initial answer") {
 		t.Error("Round 1 should have specific instructions")
 	}
-	
+
 	if !strings.Contains(prompt, "# RATIONALE") {
 		t.Error("Round 1 should have RATIONALE section")
 	}
-	
+
 	// Round 1 should not have DISCUSSION section in format
 	if strings.Contains(prompt, "# DISCUSSION") && strings.Contains(prompt, "## With [AgentName]") {
 		t.Error("Round 1 should not have DISCUSSION format section")
@@ -345,8 +345,8 @@ Test.`,
 			expected: "",
 		},
 		{
-			name: "refusal to answer",
-			content: `I do not feel comfortable providing recommendations about obtaining a wife from specific countries.`,
+			name:     "refusal to answer",
+			content:  `I do not feel comfortable providing recommendations about obtaining a wife from specific countries.`,
 			expected: "",
 		},
 	}
@@ -373,9 +373,9 @@ Test.`,
 // TestParseResponse_ComplexFormatting verifies preservation of nested lists, inline code, and indentation
 func TestParseResponse_ComplexFormatting(t *testing.T) {
 	tests := []struct {
-		name     string
-		content  string
-		wantAnswer string
+		name          string
+		content       string
+		wantAnswer    string
 		wantRationale string
 	}{
 		{
@@ -392,7 +392,7 @@ func TestParseResponse_ComplexFormatting(t *testing.T) {
 # RATIONALE
 
 Complex structure.`,
-			wantAnswer: "1. First step\n- Sub-item A\n- Sub-item B\n\n2. Second step\n- Another sub-item",
+			wantAnswer:    "1. First step\n- Sub-item A\n- Sub-item B\n\n2. Second step\n- Another sub-item",
 			wantRationale: "Complex structure.",
 		},
 		{
@@ -404,7 +404,7 @@ Use ` + "`activated charcoal`" + ` immediately.
 # RATIONALE
 
 Test.`,
-			wantAnswer: "Use `activated charcoal` immediately.",
+			wantAnswer:    "Use `activated charcoal` immediately.",
 			wantRationale: "Test.",
 		},
 		{
@@ -418,7 +418,7 @@ Main point:
 # RATIONALE
 
 Test.`,
-			wantAnswer: "Main point:\n  - Indented item\n  - Another indented",
+			wantAnswer:    "Main point:\n  - Indented item\n  - Another indented",
 			wantRationale: "Test.",
 		},
 	}
@@ -439,8 +439,8 @@ Test.`,
 // TestParseResponse_Discussion verifies parsing of discussion threads with multiple agents
 func TestParseResponse_Discussion(t *testing.T) {
 	tests := []struct {
-		name     string
-		content  string
+		name           string
+		content        string
 		wantDiscussion map[string]string
 	}{
 		{
@@ -474,7 +474,7 @@ Consider adding more data.
 
 Good approach overall.`,
 			wantDiscussion: map[string]string{
-				"GPT": "Consider adding more data.",
+				"GPT":    "Consider adding more data.",
 				"Claude": "Good approach overall.",
 			},
 		},
@@ -534,7 +534,7 @@ Test answer
 Test rationale`
 
 	reply := ParseResponse(content)
-	
+
 	if reply.RawContent != content {
 		t.Error("RawContent should be preserved exactly")
 	}
