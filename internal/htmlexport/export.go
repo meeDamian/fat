@@ -19,16 +19,14 @@ import (
 )
 
 type Exporter struct {
-	logger     *slog.Logger
-	answersDir string
-	staticDir  string
+	logger    *slog.Logger
+	staticDir string
 }
 
-func New(logger *slog.Logger, answersDir, staticDir string) *Exporter {
+func New(logger *slog.Logger, staticDir string) *Exporter {
 	return &Exporter{
-		logger:     logger,
-		answersDir: answersDir,
-		staticDir:  staticDir,
+		logger:    logger,
+		staticDir: staticDir,
 	}
 }
 
@@ -103,12 +101,11 @@ func (e *Exporter) fallbackFilename(question string) string {
 
 // Export generates and saves a static HTML file
 func (e *Exporter) Export(ctx context.Context, data ExportData) error {
-	// Generate filename and page title
-	filenameBase, pageTitle, err := e.GenerateFilename(ctx, data.Question)
+	// Generate filename slug and page title
+	slug, pageTitle, err := e.GenerateFilename(ctx, data.Question)
 	if err != nil {
 		return fmt.Errorf("generate filename: %w", err)
 	}
-	filename := filenameBase + ".html"
 
 	// Set page title in data
 	data.PageTitle = pageTitle
@@ -119,8 +116,13 @@ func (e *Exporter) Export(ctx context.Context, data ExportData) error {
 		return fmt.Errorf("generate HTML: %w", err)
 	}
 
-	// Use existing timestamp-based directory structure
-	targetDir := filepath.Join(e.answersDir, fmt.Sprintf("%d", data.QuestionTS))
+	// Format: ./h/YYYY-MM-DD/HHMM_slug.html
+	ts := time.Unix(data.QuestionTS/1000, 0) // QuestionTS is in milliseconds
+	dateDir := ts.Format("2006-01-02")
+	timePrefix := ts.Format("1504")
+	filename := fmt.Sprintf("%s_%s.html", timePrefix, slug)
+
+	targetDir := filepath.Join("h", dateDir)
 
 	// Ensure directory exists
 	if err := os.MkdirAll(targetDir, 0755); err != nil {

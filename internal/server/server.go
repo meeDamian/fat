@@ -3,11 +3,15 @@ package server
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"io/fs"
 	"log/slog"
 	"math/rand"
 	"net/http"
 	"os"
+	"path/filepath"
+	"sort"
+	"strings"
 	"sync"
 	"time"
 
@@ -55,7 +59,7 @@ func New(logger *slog.Logger, cfg config.Config, database *db.DB, staticFS fs.FS
 	}
 
 	// Create HTML exporter
-	exporter := htmlexport.New(logger, "answers", "web/static")
+	exporter := htmlexport.New(logger, "web/static")
 
 	s.orchestrator = orchestrator.New(logger, database, s, exporter)
 	return s
@@ -131,6 +135,18 @@ func (s *Server) Run() error {
 			return
 		}
 		c.Data(200, "text/html; charset=utf-8", data)
+	})
+
+	// Serve /h/ directory with directory listing
+	r.GET("/h/*filepath", func(c *gin.Context) {
+		filepath := c.Param("filepath")
+		if filepath == "" || filepath == "/" {
+			// Generate directory listing
+			s.serveDirectoryListing(c, "h")
+			return
+		}
+		// Serve static file
+		c.File("h" + filepath)
 	})
 
 	r.GET("/ws", s.handleWebSocket)
@@ -342,4 +358,131 @@ func (s *Server) handleQuestionWS(conn *websocket.Conn, ctx context.Context, msg
 	go func() {
 		s.orchestrator.ProcessQuestion(ctx, question, rounds, activeModels, questionTS)
 	}()
+}
+
+// serveDirectoryListing generates an HTML page listing all files in the h/ directory
+func (s *Server) serveDirectoryListing(c *gin.Context, baseDir string) {
+	type FileEntry struct {
+		Path    string
+		Name    string
+		ModTime time.Time
+		Size    int64
+	}
+
+	type DateGroup struct {
+		Date  string
+		Files []FileEntry
+	}
+
+	// Read directory structure
+	groups := make(map[string][]FileEntry)
+
+	err := filepath.WalkDir(baseDir, func(path string, d os.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.IsDir() {
+			return nil
+		}
+		if !strings.HasSuffix(path, ".html") {
+			return nil
+		}
+
+		info, err := d.Info()
+		if err != nil {
+			return nil
+		}
+
+		// Extract date from path (h/YYYY-MM-DD/file.html)
+		parts := strings.Split(path, string(os.PathSeparator))
+		date := "unknown"
+		if len(parts) >= 2 {
+			date = parts[1]
+		}
+
+		groups[date] = append(groups[date], FileEntry{
+			Path:    "/" + path,
+			Name:    filepath.Base(path),
+			ModTime: info.ModTime(),
+			Size:    info.Size(),
+		})
+
+		return nil
+	})
+
+	if err != nil && !os.IsNotExist(err) {
+		c.String(500, "Error reading directory: %v", err)
+		return
+	}
+
+	// Sort dates descending (newest first)
+	dates := make([]string, 0, len(groups))
+	for date := range groups {
+		dates = append(dates, date)
+	}
+	sort.Sort(sort.Reverse(sort.StringSlice(dates)))
+
+	// Sort files within each group by name (descending = newest first)
+	for date := range groups {
+		sort.Slice(groups[date], func(i, j int) bool {
+			return groups[date][i].Name > groups[date][j].Name
+		})
+	}
+
+	// Build HTML
+	var html strings.Builder
+	html.WriteString(`<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nexus - Exported Sessions</title>
+    <style>
+        :root { --bg: #0a0a0f; --text: #e4e4e7; --muted: #71717a; --accent: #7c5cff; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { background: var(--bg); color: var(--text); font-family: system-ui, sans-serif; padding: 40px 20px; max-width: 900px; margin: 0 auto; }
+        h1 { font-size: 2em; margin-bottom: 8px; }
+        .tagline { color: var(--muted); margin-bottom: 40px; }
+        .date-group { margin-bottom: 32px; }
+        .date-header { color: var(--accent); font-size: 1.1em; font-weight: 600; margin-bottom: 12px; padding-bottom: 8px; border-bottom: 1px solid rgba(255,255,255,0.1); }
+        .file-list { list-style: none; }
+        .file-list li { margin-bottom: 8px; }
+        .file-list a { color: var(--text); text-decoration: none; display: block; padding: 12px 16px; background: rgba(255,255,255,0.03); border-radius: 8px; transition: all 0.2s; }
+        .file-list a:hover { background: rgba(124, 92, 255, 0.15); transform: translateX(4px); }
+        .file-name { font-weight: 500; }
+        .file-meta { color: var(--muted); font-size: 0.85em; margin-top: 4px; }
+        .empty { color: var(--muted); font-style: italic; }
+    </style>
+</head>
+<body>
+    <h1>📄 Exported Sessions</h1>
+    <p class="tagline">Static HTML snapshots of Nexus conversations</p>
+`)
+
+	if len(dates) == 0 {
+		html.WriteString(`    <p class="empty">No exports yet. Run some questions and they'll appear here!</p>`)
+	} else {
+		for _, date := range dates {
+			html.WriteString(fmt.Sprintf(`    <div class="date-group">
+        <div class="date-header">📅 %s</div>
+        <ul class="file-list">
+`, date))
+			for _, f := range groups[date] {
+				sizeKB := float64(f.Size) / 1024
+				html.WriteString(fmt.Sprintf(`            <li><a href="%s">
+                <div class="file-name">%s</div>
+                <div class="file-meta">%.1f KB</div>
+            </a></li>
+`, f.Path, f.Name, sizeKB))
+			}
+			html.WriteString(`        </ul>
+    </div>
+`)
+		}
+	}
+
+	html.WriteString(`</body>
+</html>`)
+
+	c.Data(200, "text/html; charset=utf-8", []byte(html.String()))
 }
