@@ -79,7 +79,8 @@ var ModelFamilies = map[string]types.ModelFamily{
 		Provider: "Google",
 		BaseURL:  "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent", // Updated to placeholder for flexibility.
 		Variants: map[string]types.ModelVariant{
-			Gemini3ProPreview: {MaxTok: 1_048_576, Rate: types.Rate{In: 2.0, Out: 12.0}},
+			Gemini3Pro:        {MaxTok: 1_048_576, Rate: types.Rate{In: 2.0, Out: 12.0}},
+			Gemini3Flash:      {MaxTok: 1_048_576, Rate: types.Rate{In: 0.5, Out: 3.0}},
 			Gemini25Pro:       {MaxTok: 1_048_576, Rate: types.Rate{In: 1.25, Out: 10.0}},
 			Gemini25Flash:     {MaxTok: 1_048_576, Rate: types.Rate{In: 0.3, Out: 2.5}},
 			Gemini25FlashLite: {MaxTok: 1_048_576, Rate: types.Rate{In: 0.1, Out: 0.4}},
@@ -123,7 +124,7 @@ var DefaultModels = map[string]string{
 	Grok:     Grok41Fast,
 	GPT:      GPT5Mini,
 	Claude:   Claude45Opus,
-	Gemini:   Gemini25Pro,
+	Gemini:   Gemini3Flash,
 	DeepSeek: DeepSeekChat,
 	Mistral:  MistralLarge,
 }

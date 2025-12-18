@@ -226,15 +226,15 @@ func (db *DB) SaveModelRound(ctx context.Context, mr ModelRound) error {
 			answer, rationale, discussion, private_notes
 		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT(request_id, model_id, round) DO UPDATE SET
-			duration_ms = excluded.duration_ms,
-			tokens_in = excluded.tokens_in,
-			tokens_out = excluded.tokens_out,
-			cost = excluded.cost,
-			error = excluded.error,
-			answer = excluded.answer,
-			rationale = excluded.rationale,
-			discussion = excluded.discussion,
-			private_notes = excluded.private_notes
+			duration_ms = CASE WHEN excluded.duration_ms > 0 THEN excluded.duration_ms ELSE model_rounds.duration_ms END,
+			tokens_in = CASE WHEN excluded.tokens_in > 0 THEN excluded.tokens_in ELSE model_rounds.tokens_in END,
+			tokens_out = CASE WHEN excluded.tokens_out > 0 THEN excluded.tokens_out ELSE model_rounds.tokens_out END,
+			cost = CASE WHEN excluded.cost > 0 THEN excluded.cost ELSE model_rounds.cost END,
+			error = CASE WHEN excluded.error != '' THEN excluded.error ELSE model_rounds.error END,
+			answer = CASE WHEN excluded.answer != '' THEN excluded.answer ELSE model_rounds.answer END,
+			rationale = CASE WHEN excluded.rationale != '' THEN excluded.rationale ELSE model_rounds.rationale END,
+			discussion = CASE WHEN excluded.discussion != '' THEN excluded.discussion ELSE model_rounds.discussion END,
+			private_notes = CASE WHEN excluded.private_notes != '' THEN excluded.private_notes ELSE model_rounds.private_notes END
 	`
 
 	_, err := db.conn.ExecContext(ctx, query,
