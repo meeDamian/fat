@@ -370,6 +370,9 @@ function initWebSocket() {
                 output.innerHTML = '<p class="placeholder">Responses will appear here once the collaboration begins.</p>';
                 output.className = 'model-output';
                 cardElements[model].className = 'model-card';
+                // Remove any medal icons
+                const medals = cardElements[model].querySelectorAll('.medal-icon');
+                medals.forEach(m => m.remove());
                 setCardStatus(model, '');
             });
             conversationBoard.classList.remove('hidden');
@@ -518,6 +521,10 @@ submitBtn.addEventListener('click', async function () {
         output.innerHTML = '<p class="placeholder">Awaiting model response...</p>';
         output.className = 'model-output loading-text';
         cardElements[model].classList.remove('winner', 'runner-up', 'bronze', 'error');
+        // Remove any medal icons
+        const medals = cardElements[model].querySelectorAll('.medal-icon');
+        medals.forEach(m => m.remove());
+
         cardElements[model].classList.add('loading');
         setCardStatus(model, '');
         renderRoundDots(model);
