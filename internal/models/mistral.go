@@ -22,6 +22,23 @@ const (
 	Ministral8B     = "ministral-8b-latest"
 )
 
+// Models list: https://docs.mistral.ai/getting-started/models/
+// Pricing: https://mistral.ai/technology/#pricing
+var MistralFamily = types.ModelFamily{
+	ID:       Mistral,
+	Provider: "Mistral AI",
+	BaseURL:  "https://api.mistral.ai/v1",
+	Variants: map[string]types.ModelVariant{
+		MagistralMedium: {MaxTok: 128_000, Rate: types.Rate{In: 2.0, Out: 5.0}},
+		MistralLarge:    {MaxTok: 256_000, Rate: types.Rate{In: 0.5, Out: 1.5}},
+		MistralMedium:   {MaxTok: 128_000, Rate: types.Rate{In: 0.4, Out: 2.0}},
+		MistralSmall:    {MaxTok: 32_000, Rate: types.Rate{In: 0.1, Out: 0.3}},
+		Codestral:       {MaxTok: 256_000, Rate: types.Rate{In: 0.3, Out: 0.9}},
+		Ministral3B:     {MaxTok: 128_000, Rate: types.Rate{In: 0.04, Out: 0.04}},
+		Ministral8B:     {MaxTok: 128_000, Rate: types.Rate{In: 0.1, Out: 0.1}},
+	},
+}
+
 // MistralModel implements the Model interface for Mistral AI
 type MistralModel struct {
 	info   *types.ModelInfo

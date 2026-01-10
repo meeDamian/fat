@@ -24,6 +24,23 @@ const (
 	Grok3                  = "grok-3"
 )
 
+// Models list: https://docs.x.ai/docs/models
+var GrokFamily = types.ModelFamily{
+	ID:       Grok,
+	Provider: "xAI",
+	BaseURL:  "https://api.x.ai/v1/chat/completions",
+	Variants: map[string]types.ModelVariant{
+		Grok41Fast:             {MaxTok: 2_000_000, Rate: types.Rate{In: 0.2, Out: 0.5}},
+		Grok41FastNonReasoning: {MaxTok: 2_000_000, Rate: types.Rate{In: 0.2, Out: 0.5}},
+		Grok4Fast:              {MaxTok: 2_000_000, Rate: types.Rate{In: 0.2, Out: 0.5}},
+		Grok4FastNonReasoning:  {MaxTok: 2_000_000, Rate: types.Rate{In: 0.2, Out: 0.5}},
+		GrokCodeFast1:          {MaxTok: 256_000, Rate: types.Rate{In: 0.2, Out: 1.5}},
+		Grok4:                  {MaxTok: 256_000, Rate: types.Rate{In: 3.0, Out: 15.0}},
+		Grok3Mini:              {MaxTok: 131_072, Rate: types.Rate{In: 0.3, Out: 0.5}},
+		Grok3:                  {MaxTok: 131_072, Rate: types.Rate{In: 3.0, Out: 15.0}},
+	},
+}
+
 // GrokModel implements the Model interface for Grok
 type GrokModel struct {
 	info   *types.ModelInfo

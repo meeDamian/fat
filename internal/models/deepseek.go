@@ -17,6 +17,17 @@ const (
 	DeepSeekCoder = "deepseek-coder"
 )
 
+// Models list: https://api-docs.deepseek.com/
+var DeepSeekFamily = types.ModelFamily{
+	ID:       DeepSeek,
+	Provider: "DeepSeek",
+	BaseURL:  "https://api.deepseek.com/v1",
+	Variants: map[string]types.ModelVariant{
+		DeepSeekChat:  {MaxTok: 128_000, Rate: types.Rate{In: 0.28, Out: 0.42}},
+		DeepSeekCoder: {MaxTok: 128_000, Rate: types.Rate{In: 0.28, Out: 0.42}},
+	},
+}
+
 // DeepSeekModel implements the Model interface for DeepSeek
 type DeepSeekModel struct {
 	info   *types.ModelInfo

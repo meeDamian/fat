@@ -21,6 +21,24 @@ const (
 	Gemini20FlashLite = "gemini-2.0-flash-lite"
 )
 
+// Models list: https://ai.google.dev/gemini-api/docs/models
+var GeminiFamily = types.ModelFamily{
+	ID:       Gemini,
+	Provider: "Google",
+	BaseURL:  "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent", // Updated to placeholder for flexibility.
+	Variants: map[string]types.ModelVariant{
+		Gemini3Pro:   {MaxTok: 1_048_576, Rate: types.Rate{In: 2.0, Out: 12.0}},
+		Gemini3Flash: {MaxTok: 1_048_576, Rate: types.Rate{In: 0.5, Out: 3.0}},
+
+		Gemini25Pro:       {MaxTok: 1_048_576, Rate: types.Rate{In: 1.25, Out: 10.0}},
+		Gemini25Flash:     {MaxTok: 1_048_576, Rate: types.Rate{In: 0.3, Out: 2.5}},
+		Gemini25FlashLite: {MaxTok: 1_048_576, Rate: types.Rate{In: 0.1, Out: 0.4}},
+
+		Gemini20Flash:     {MaxTok: 1_048_576, Rate: types.Rate{In: 0.1, Out: 0.4}},
+		Gemini20FlashLite: {MaxTok: 1_048_576, Rate: types.Rate{In: 0.075, Out: 0.3}},
+	},
+}
+
 // GeminiModel implements the Model interface for Google Gemini
 type GeminiModel struct {
 	info   *types.ModelInfo
