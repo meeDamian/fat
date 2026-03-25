@@ -14,6 +14,9 @@ import (
 const (
 	Grok = "grok"
 
+	Grok420MultiAgent      = "grok-4.20-multi-agent"
+	Grok420NonReasoning    = "grok-4.20-non-reasoning"
+	Grok420                = "grok-4.20"
 	Grok41Fast             = "grok-4-1-fast"
 	Grok41FastNonReasoning = "grok-4-1-fast-non-reasoning"
 	Grok4Fast              = "grok-4-fast"
@@ -30,6 +33,7 @@ var GrokFamily = types.ModelFamily{
 	Provider: "xAI",
 	BaseURL:  "https://api.x.ai/v1/chat/completions",
 	Variants: map[string]types.ModelVariant{
+		Grok420:                {MaxTok: 2_000_000, Rate: types.Rate{In: 2.0, Out: 6.0}},
 		Grok41Fast:             {MaxTok: 2_000_000, Rate: types.Rate{In: 0.2, Out: 0.5}},
 		Grok41FastNonReasoning: {MaxTok: 2_000_000, Rate: types.Rate{In: 0.2, Out: 0.5}},
 		Grok4Fast:              {MaxTok: 2_000_000, Rate: types.Rate{In: 0.2, Out: 0.5}},

@@ -13,6 +13,11 @@ import (
 const (
 	GPT = "gpt"
 
+	GPT54Nano = "gpt-5.4-nano"
+	GPT54Mini = "gpt-5.4-mini"
+	GPT54     = "gpt-5.4"
+	GPT54Pro  = "gpt-5.4-pro"
+
 	GPT52    = "gpt-5.2"
 	GPT52Pro = "gpt-5.2-pro"
 
@@ -37,6 +42,11 @@ var GPTFamily = types.ModelFamily{
 	Provider: "OpenAI",
 	BaseURL:  "https://api.openai.com/v1/chat/completions",
 	Variants: map[string]types.ModelVariant{
+		GPT54Nano: {MaxTok: 400_000, Rate: types.Rate{In: 0.2, Out: 1.25}},
+		GPT54Mini: {MaxTok: 400_000, Rate: types.Rate{In: 0.75, Out: 4.5}},
+		GPT54:     {MaxTok: 400_000, Rate: types.Rate{In: 2.5, Out: 15.0}},
+		GPT54Pro:  {MaxTok: 400_000, Rate: types.Rate{In: 30.0, Out: 180.0}},
+
 		GPT52:    {MaxTok: 400_000, Rate: types.Rate{In: 1.75, Out: 14.0}},
 		GPT52Pro: {MaxTok: 400_000, Rate: types.Rate{In: 21.0, Out: 168.0}},
 

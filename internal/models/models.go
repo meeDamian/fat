@@ -30,10 +30,10 @@ var ModelFamilies = map[string]types.ModelFamily{
 // DefaultModels defines which model variant to use for each family by default
 // Change the variant name here to switch default models
 var DefaultModels = map[string]string{
-	Grok:     Grok41Fast,
+	Grok:     Grok420MultiAgent,
 	GPT:      GPT5Mini,
-	Claude:   Claude45Opus,
-	Gemini:   Gemini3Flash,
+	Claude:   Claude46Opus,
+	Gemini:   Gemini31FlashLite,
 	DeepSeek: DeepSeekChat,
 	Mistral:  MistralLarge,
 }

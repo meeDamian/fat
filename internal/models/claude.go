@@ -13,6 +13,8 @@ import (
 const (
 	Claude = "claude"
 
+	Claude46Opus   = "claude-opus-4-6"
+	Claude46Sonnet = "claude-sonnet-4-6"
 	Claude45Opus   = "claude-opus-4-5"
 	Claude45Sonnet = "claude-sonnet-4-5"
 	Claude45Haiku  = "claude-haiku-4-5"
@@ -29,6 +31,8 @@ var ClaudeFamily = types.ModelFamily{
 	Provider: "Anthropic",
 	BaseURL:  "https://api.anthropic.com/v1/messages",
 	Variants: map[string]types.ModelVariant{
+		Claude46Opus:   {MaxTok: 1_000_000, Rate: types.Rate{In: 5.0, Out: 25.0}},
+		Claude46Sonnet: {MaxTok: 1_000_000, Rate: types.Rate{In: 3.0, Out: 15.0}},
 		// NOTE: Claude Sonnet 4.5 supports a 1M token context window when using the context-1m-2025-08-07 beta header. Long context pricing applies to requests exceeding 200K tokens.
 		// NOTE: Claude Sonnet 4 supports a 1M token context window when using the context-1m-2025-08-07 beta header. Long context pricing applies to requests exceeding 200K tokens.
 		Claude45Opus:   {MaxTok: 200_000, Rate: types.Rate{In: 5.0, Out: 25.0}},

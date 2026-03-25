@@ -14,6 +14,8 @@ import (
 	"github.com/meedamian/fat/web"
 )
 
+var BuildTime = "dev"
+
 func main() {
 	// Load configuration
 	cfg, err := config.Load()
@@ -26,6 +28,9 @@ func main() {
 	if err != nil {
 		panic(fmt.Errorf("failed to create logger: %w", err))
 	}
+
+	// Log build info
+	logger.Info("starting application", slog.String("build_time", BuildTime))
 
 	// Load API keys
 	logger.Info("loading API keys")

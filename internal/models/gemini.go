@@ -12,6 +12,8 @@ import (
 const (
 	Gemini = "gemini"
 
+	Gemini31Pro       = "gemini-3.1-pro-preview"
+	Gemini31FlashLite = "gemini-3.1-flash-lite-preview"
 	Gemini3Pro        = "gemini-3-pro-preview"
 	Gemini3Flash      = "gemini-3-flash-preview"
 	Gemini25Pro       = "gemini-2.5-pro"
@@ -27,6 +29,9 @@ var GeminiFamily = types.ModelFamily{
 	Provider: "Google",
 	BaseURL:  "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent", // Updated to placeholder for flexibility.
 	Variants: map[string]types.ModelVariant{
+		Gemini31Pro:       {MaxTok: 1_048_576, Rate: types.Rate{In: 2.0, Out: 12.0}},
+		Gemini31FlashLite: {MaxTok: 1_048_576, Rate: types.Rate{In: 0.25, Out: 1.5}},
+
 		Gemini3Pro:   {MaxTok: 1_048_576, Rate: types.Rate{In: 2.0, Out: 12.0}},
 		Gemini3Flash: {MaxTok: 1_048_576, Rate: types.Rate{In: 0.5, Out: 3.0}},
 

@@ -8,6 +8,8 @@ PI_PATH="/home/pi/fat"
 LOCAL_PORT="4445"
 REMOTE_PORT="4444"
 
+BUILD_TIME=$(date -u "+%Y-%m-%dT%H:%M:%SZ")
+
 echo "📥 Syncing database FROM Pi..."
 rsync -avz --progress "$PI_USER@$PI_HOST:$PI_PATH/fat.db" ./fat.db 2>/dev/null || echo "  (no remote db yet)"
 
@@ -16,10 +18,10 @@ rsync -avz --progress "$PI_USER@$PI_HOST:$PI_PATH/h/" ./h/ 2>/dev/null || echo "
 
 echo ""
 echo "🔨 Cross-compiling for ARM64 (Pi)..."
-GOOS=linux GOARCH=arm64 go build -o fat-arm64 ./cmd/fat
+GOOS=linux GOARCH=arm64 go build -ldflags "-X main.BuildTime=$BUILD_TIME" -o fat-arm64 ./cmd/fat
 
 echo "🔨 Building local binary..."
-go build -o fat ./cmd/fat
+go build -ldflags "-X main.BuildTime=$BUILD_TIME" -o fat ./cmd/fat
 
 echo ""
 echo "📤 Uploading to $PI_USER@$PI_HOST..."
